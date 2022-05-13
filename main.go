@@ -25,19 +25,6 @@ const (
 	PrefixImages           = "images"
 	PrefixOut              = "tmp"
 	DownloadObjectFilename = "Update.IPC127E.ecs"
-	yamlContent            = `apiVersion: batch/v1
-kind: Job
-metadata:
-  name: upgrade
-spec:
-  template:
-    spec:
-      containers:
-      - name: upgrade
-        image: bash
-        command: ["echo",  "upgrading IPC127E"]
-      restartPolicy: Never
-  backoffLimit 1`
 )
 
 var (
@@ -50,9 +37,10 @@ var (
 	buffer     *bytes.Buffer
 
 	images = map[string]string{
-		"ipc-demo-frontend": "v0.1",
-		"ipc-demo-backend":  "v0.2",
-		"upgrade.yaml":      yamlContent,
+		"ipc-demo-frontend.oci": PrefixImages + "/ipc-demo-frontend/v0.2.oci",
+		"ipc-demo-backend.oci":  PrefixImages + "/ipc-demo-backend/v0.3.oci",
+		"ipc-demo-updater.oci":  PrefixImages + "/ipc-demo-updater/v3.0.oci",
+		"job.yaml":              "job.yaml",
 	}
 )
 
@@ -75,20 +63,13 @@ func HandleRequest(ctx context.Context) (string, error) {
 	createArchive()
 	for imgName, imgTag := range images {
 		var body []byte
-		if imgName != "upgrade.yaml" {
-			body, err = downloadS3Resource(PrefixImages + "/" + imgName + "/" + imgTag + ".oci")
-			if err != nil {
-				return "Failed downloading", err
-			}
-		} else {
-			body = []byte(imgTag)
+		body, err = downloadS3Resource(imgTag)
+		if err != nil {
+			return "Failed downloading", err
 		}
 		signature, err := signer.SignMessage(bytes.NewReader(body))
 		if err != nil {
 			return "failed signing", err
-		}
-		if imgName != "upgrade.yaml" {
-			imgName = imgName + ".oci"
 		}
 		if err = addToArchive(imgName, body, signature); err != nil {
 			return "failed taring", nil
