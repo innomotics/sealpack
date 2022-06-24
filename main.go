@@ -8,17 +8,21 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
+	"github.com/aws/aws-sdk-go/service/ecr"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	kmssigner "github.com/sigstore/sigstore/pkg/signature/kms/aws"
 	"os"
 	"path/filepath"
+	"net/http"
+	"os"
 	"time"
 )
 
@@ -91,6 +95,8 @@ func HandleRequest(ctx context.Context) (string, error) {
 		return "unable to create AWS session", err
 	}
 	s3Session = s3.New(sess)
+	ecrSession = ecr.New(sess)
+	smSession = secretsmanager.New(sess)
 	ecrSession = ecr.New(sess)
 	smSession = secretsmanager.New(sess)
 	signer, err := kmssigner.LoadSignerVerifier("awskms:///" + KeyArn)
