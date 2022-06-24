@@ -8,42 +8,51 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
-	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	kmssigner "github.com/sigstore/sigstore/pkg/signature/kms/aws"
-	"io/ioutil"
-	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 )
 
+// PackageContent represents one component to be included in the upgrade package.
+// If IsImage is set true, the component will be pulled by Name and Tag from the ECR registry.
+// If only name is provided, a static file is expected.
 type PackageContent struct {
-	Name    string
-	Tag     string
-	IsImage bool
+	Name    string `json:"name"`
+	Tag     string `json:"tag"`
+	IsImage bool   `json:"is_image"`
 }
 
-type LayerConfig struct {
+// Manifest represents an OCI image manifest, typically provided as json.
+// For easier handling, this implementation only contains the necessary properties.
+// @url https://github.com/opencontainers/image-spec/blob/main/manifest.md
+type Manifest struct {
+	SchemaVersion int
+	Config        Descriptor
+	Layers        []Descriptor
+	Annotations   map[string]string
+}
+
+// Descriptor is a standard OCI descriptor.
+// For easier handling, this implementation only contains the necessary properties.
+// @url https://github.com/opencontainers/image-spec/blob/main/descriptor.md
+type Descriptor struct {
 	MediaType string
 	Digest    string
 	Size      int
 }
 
-type Manifest struct {
-	SchemaVersion int
-	Config        LayerConfig
-	Layers        []LayerConfig
-	Annotations   map[string]string
-}
-
+// OutManifest is the manifest in docker (moby) image format.
+// For easier handling, this implementation only contains the necessary properties.
+// @url https://github.com/moby/moby/blob/master/image/tarexport/tarexport.go#L18-L24
 type OutManifest struct {
 	Config   string   `json:"Config"`
 	RepoTags []string `json:"RepoTags"`
@@ -51,57 +60,37 @@ type OutManifest struct {
 }
 
 const (
-	SecretName             = "dev/aeskey"
-	BucketName             = "ecs-updater"
-	KeyArn                 = "arn:aws:kms:eu-central-1:920225275827:key/bd52e3aa-5197-446a-8ee5-e3f2db29ad9b"
-	EcrRepository          = "920225275827.dkr.ecr.eu-central-1.amazonaws.com"
-	PrefixOut              = "tmp"
-	DownloadObjectFilename = "Update.IPC127E.ecs"
+	SecretName               = "dev/aeskey"
+	BucketName               = "ecs-updater"
+	KeyArn                   = "arn:aws:kms:eu-central-1:920225275827:key/b07ed28b-e303-4360-9972-6e650aeb3711"
+	EcrRepository            = "920225275827.dkr.ecr.eu-central-1.amazonaws.com"
+	PrefixOut                = "tmp"
+	DownloadObjectFilename   = "Update.IPC127E.ecs"
+	PresignValidDuration     = 5 * time.Minute
+	ApplicationConfigPattern = "application.v*.json"
+	ApplicationConfigDefault = "application.v3.json"
 )
 
 var (
-	s3Session  *s3.S3
-	kmsSession *kms.KMS
-	ecrSession *ecr.ECR
-	smSession  *secretsmanager.SecretsManager
-
 	gzipWriter *gzip.Writer
 	tarWriter  *tar.Writer
 	tarOut     *bufio.Writer
 	buffer     *bytes.Buffer
 
-	contents = []PackageContent{
-		{
-			Name:    "ipc-demo-frontend",
-			Tag:     "v0.2",
-			IsImage: true,
-		},
-		{
-			Name:    "ipc-demo-backend",
-			Tag:     "v0.3",
-			IsImage: true,
-		},
-		{
-			Name:    "ipc-demo-updater",
-			Tag:     "v3.0",
-			IsImage: true,
-		},
-		{
-			Name: "job.yaml",
-		},
-	}
+	appConfig []PackageContent
 )
 
+// HandleRequest is the central handler for the downloader.
+// The 6 steps are described in the function in detail.
 func HandleRequest(ctx context.Context) (string, error) {
-	// 0. Prepare
+	// 1. Prepare AWS services
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String("eu-central-1")},
 	)
 	if err != nil {
-		return "1", err
+		return "unable to create AWS session", err
 	}
 	s3Session = s3.New(sess)
-	kmsSession = kms.New(sess)
 	ecrSession = ecr.New(sess)
 	smSession = secretsmanager.New(sess)
 	signer, err := kmssigner.LoadSignerVerifier("awskms:///" + KeyArn)
@@ -109,11 +98,19 @@ func HandleRequest(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	// 1. Prepare TARget (pun intended) and add files and signatures
+	// 2. Load latest application configuration
+	fmt.Println("[1] Loading application configuration")
+	err = readConfiguration()
+	if err != nil {
+		return "unable to read application configuration", err
+	}
+
+	// 3. Prepare TARget (pun intended) and add files and signatures
+	fmt.Println("[2] Preparing Archive")
 	createArchive()
 	var body []byte
 	var imgName string
-	for _, content := range contents {
+	for _, content := range appConfig {
 		imgName = content.Name
 		if content.IsImage {
 			body, err = downloadEcrImage(&content)
@@ -123,11 +120,12 @@ func HandleRequest(ctx context.Context) (string, error) {
 			}
 			imgName += ".oci"
 		} else {
-			body, err = downloadS3Resource(content.Name)
+			body, err = s3DownloadResource(content.Name)
 			if err != nil {
 				return "Failed downloading", err
 			}
 		}
+		fmt.Println("[3] Signing " + content.Name)
 		signature, err := signer.SignMessage(bytes.NewReader(body))
 		if err != nil {
 			return "failed signing", err
@@ -137,123 +135,57 @@ func HandleRequest(ctx context.Context) (string, error) {
 		}
 	}
 
-	// 2. Encrypt archive
+	// 4. Encrypt archive
+	fmt.Println("[4] Encrypting Archive")
 	closeArchive()
 	archive, err := encryptArchive(buffer.Bytes())
 	if err != nil {
 		return "failed encrypting archive", err
 	}
 
-	// 3. Move tar file to S3
-	poo, err := s3Session.PutObject(&s3.PutObjectInput{
-		Bucket: aws.String(BucketName),
-		Key:    aws.String(PrefixOut + "/" + DownloadObjectFilename),
-		Body:   bytes.NewReader(archive),
-	})
+	// 5. Move encrypted file to S3
+	fmt.Println("[5] Uploading Archive")
+	err = s3UploadArchive(archive)
 	if err != nil {
 		return "failed uploading to S3", err
 	}
-	fmt.Println(poo.String())
 
-	// 4. Create preshared key
-	req, _ := s3Session.GetObjectRequest(&s3.GetObjectInput{
-		Bucket: aws.String(BucketName),
-		Key:    aws.String(PrefixOut + "/" + DownloadObjectFilename),
-	})
-	urlStr, err := req.Presign(5 * time.Minute)
-
+	// 6. Create preshared key and return its url
+	fmt.Println("[6] Create Presigned Link")
+	urlStr, err := s3CreatePresignedDownload()
 	if err != nil {
 		return "failed presigning", err
 	}
 	return urlStr, nil
 }
 
-func downloadEcrImage(content *PackageContent) ([]byte, error) {
-	imageDetails, err := ecrSession.BatchGetImage(&ecr.BatchGetImageInput{
-		RepositoryName: &content.Name,
-		ImageIds: []*ecr.ImageIdentifier{
-			{ImageTag: &content.Tag},
-		},
-	})
+// readConfiguration searches for the latest configuration json-file and reads the contents.
+// The contents are parsed as a slice of PackageContent.
+func readConfiguration() error {
+	files, err := filepath.Glob(ApplicationConfigPattern)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	manifest := Manifest{}
-	if err = json.Unmarshal([]byte(*imageDetails.Images[0].ImageManifest), &manifest); err != nil {
-		return nil, err
-	}
-
-	// prepare image tar
-	imageTarBuf := new(bytes.Buffer)
-	imageTarWriter := tar.NewWriter(imageTarBuf)
-
-	om := make([]OutManifest, 1)
-	// 0. Add base tag
-	om[0].RepoTags = make([]string, 1)
-	om[0].RepoTags[0] = fmt.Sprintf("%s/%s:%s", EcrRepository, content.Name, content.Tag)
-	// 1. Download Config
-	data, err := downloadLayer(&content.Name, manifest.Config)
-	if err != nil {
-		return nil, err
-	}
-	om[0].Config = manifest.Config.Digest[7:] + ".json"
-	if err = writeToTar(imageTarWriter, &om[0].Config, data); err != nil {
-		return nil, err
-	}
-	// 2. Add all layers (gzipped on pull, so unzip the downloaded byte stream before adding it)
-	om[0].Layers = make([]string, 0, len(manifest.Layers))
-	var dataBuf bytes.Buffer
-	for _, layer := range manifest.Layers {
-		data, err = downloadLayer(&content.Name, layer)
+	var data []byte
+	if len(files) < 1 {
+		// read from S3
+		data, err = s3DownloadResource(ApplicationConfigDefault)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		om[0].Layers = append(om[0].Layers, layer.Digest[7:]+".tar")
-		gunzip, err := gzip.NewReader(bytes.NewReader(data))
+	} else {
+		// Currently, we use only the latest version
+		// TODO: Make the version configurable
+		data, err = os.ReadFile(files[len(files)-1])
 		if err != nil {
-			return nil, err
-		}
-		if _, err = dataBuf.ReadFrom(gunzip); err != nil {
-			return nil, err
-		}
-		if err = writeToTar(imageTarWriter, &om[0].Layers[len(om[0].Layers)-1], dataBuf.Bytes()); err != nil {
-			return nil, err
+			return err
 		}
 	}
-	// 3. Add the manifest
-	outManifestBytes, err := json.Marshal(om)
-	if err != nil {
-		return nil, err
-	}
-	if err = writeToTar(imageTarWriter, aws.String("manifest.json"), outManifestBytes); err != nil {
-		return nil, err
-	}
-	if err = imageTarWriter.Close(); err != nil {
-		return nil, err
-	}
-	return imageTarBuf.Bytes(), nil
+	err = json.Unmarshal(data, &appConfig)
+	return err
 }
 
-func downloadLayer(image *string, config LayerConfig) ([]byte, error) {
-	download, err := ecrSession.GetDownloadUrlForLayer(&ecr.GetDownloadUrlForLayerInput{
-		RepositoryName: image,
-		LayerDigest:    aws.String(config.Digest),
-	})
-	if err != nil {
-		return nil, err
-	}
-	cli := http.Client{}
-	resp, err := cli.Get(*download.DownloadUrl)
-	if err != nil {
-		return nil, err
-	}
-	buf := bytes.Buffer{}
-	if _, err = buf.ReadFrom(resp.Body); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
+// writeToTar adds a file to a writer using a filename and a byte slice with contents to be written.
 func writeToTar(w *tar.Writer, filename *string, contents []byte) error {
 	if err := w.WriteHeader(&tar.Header{
 		Name:    *filename,
@@ -267,6 +199,8 @@ func writeToTar(w *tar.Writer, filename *string, contents []byte) error {
 	return err
 }
 
+// encryptArchive applies an AES GCM encryption on a file represented as a byte slice.
+// The result is an encrypted file, represented again as a byte slice.
 func encryptArchive(body []byte) ([]byte, error) {
 	aesKey, err := getEncryptionKey()
 	if err != nil {
@@ -284,29 +218,9 @@ func encryptArchive(body []byte) ([]byte, error) {
 	return aesGCM.Seal(nil, nonce, body, nil), nil
 }
 
-func getEncryptionKey() ([]byte, error) {
-	result, err := smSession.GetSecretValue(&secretsmanager.GetSecretValueInput{
-		SecretId: aws.String(SecretName),
-	})
-	if err != nil {
-		return nil, err
-	}
-	buffer := make([]byte, 32)
-	base64.StdEncoding.Decode(buffer, []byte(*result.SecretString))
-	return buffer, err
-}
-
-func downloadS3Resource(key string) ([]byte, error) {
-	objectOut, err := s3Session.GetObject(&s3.GetObjectInput{
-		Bucket: aws.String(BucketName),
-		Key:    aws.String(key),
-	})
-	if err != nil {
-		return nil, err
-	}
-	return ioutil.ReadAll(objectOut.Body)
-}
-
+// addToArchive adds a new file identified by its name to the tar.gz archive.
+// The contents and the accompanying signature are added as byte slices.
+// The signature's filename is the filename with .sig suffix.
 func addToArchive(imgName string, contents []byte, signature []byte) error {
 	// 1. Add the OCI image
 	if err := writeToTar(tarWriter, &imgName, contents); err != nil {
@@ -322,17 +236,23 @@ func addToArchive(imgName string, contents []byte, signature []byte) error {
 	return nil
 }
 
+// createArchive opens a stream of writers (tar to gzip to buffer).
+// Bytes added to the stream will be added to the tar.gz archive.
+// It can be retrieved through the buffer as byte slice.
 func createArchive() {
 	buffer = new(bytes.Buffer)
 	gzipWriter = gzip.NewWriter(buffer)
 	tarWriter = tar.NewWriter(gzipWriter)
 }
 
+// closeArchive closes the tar and gzip writers.
 func closeArchive() {
 	gzipWriter.Close()
 	tarWriter.Close()
 }
 
+// main entrypoint for the downloader application.
+// Both the handler for usage with AW Lambda and a standalone executable are provided.
 func main() {
 	//////// LAMBDA USAGE //////
 	lambda.Start(HandleRequest)

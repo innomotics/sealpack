@@ -5,17 +5,13 @@ go 1.18
 require (
 	github.com/aws/aws-lambda-go v1.31.1
 	github.com/aws/aws-sdk-go v1.44.8
-	github.com/docker/cli v20.10.12+incompatible
 	github.com/sigstore/sigstore v1.2.0
 )
 
 require (
 	github.com/ReneKroon/ttlcache/v2 v2.11.0 // indirect
-	github.com/docker/distribution v2.7.1+incompatible // indirect
 	github.com/google/go-containerregistry v0.8.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
-	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/opencontainers/image-spec v1.0.2-0.20211117181255-693428a734f5 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/theupdateframework/go-tuf v0.0.0-20220127213825-87caa18db2a6 // indirect
 	golang.org/x/crypto v0.0.0-20220131195533-30dcbda58838 // indirect
