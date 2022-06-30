@@ -23,19 +23,19 @@ func s3DownloadResource(key string) ([]byte, error) {
 }
 
 // s3CreatePresignedDownload creates a presigned link to an object and returns it as string.
-func s3CreatePresignedDownload() (string, error) {
+func s3CreatePresignedDownload(fName string) (string, error) {
 	req, _ := s3Session.GetObjectRequest(&s3.GetObjectInput{
 		Bucket: aws.String(BucketName),
-		Key:    aws.String(PrefixOut + "/" + DownloadObjectFilename),
+		Key:    aws.String(PrefixOut + "/" + fName),
 	})
 	return req.Presign(PresignValidDuration)
 }
 
 // s3UploadArchive uploads the byte slice of the archive to S3.
-func s3UploadArchive(archive []byte) error {
+func s3UploadArchive(archive []byte, fName string) error {
 	_, err := s3Session.PutObject(&s3.PutObjectInput{
 		Bucket: aws.String(BucketName),
-		Key:    aws.String(PrefixOut + "/" + DownloadObjectFilename),
+		Key:    aws.String(PrefixOut + "/" + fName),
 		Body:   bytes.NewReader(archive),
 	})
 	if err != nil {

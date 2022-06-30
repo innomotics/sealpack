@@ -55,6 +55,7 @@ func downloadEcrImage(content *PackageContent) ([]byte, error) {
 	om[0].Layers = make([]string, 0, len(manifest.Layers))
 	var dataBuf bytes.Buffer
 	for _, layer := range manifest.Layers {
+		dataBuf = bytes.Buffer{}
 		data, err = downloadLayer(&content.Name, layer)
 		if err != nil {
 			return nil, err

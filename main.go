@@ -28,6 +28,10 @@ type ApiParams struct {
 	Version     string `json:"version"`
 }
 
+func (p ApiParams) GetPackageName(suffix string) string {
+	return fmt.Sprintf("%s-%s.%s", p.Application, p.Version, suffix)
+}
+
 // PackageContent represents one component to be included in the upgrade package.
 // If IsImage is set true, the component will be pulled by Name and Tag from the ECR registry.
 // If only name is provided, a static file is expected.
@@ -71,7 +75,7 @@ const (
 	KeyArn                   = "arn:aws:kms:eu-central-1:920225275827:key/b07ed28b-e303-4360-9972-6e650aeb3711"
 	EcrRepository            = "920225275827.dkr.ecr.eu-central-1.amazonaws.com"
 	PrefixOut                = "tmp"
-	DownloadObjectFilename   = "Update.IPC127E.ipc"
+	UpgradeFilenameSuffix    = "ipc"
 	PresignValidDuration     = 5 * time.Minute
 	ApplicationConfigPattern = "application.v*.json"
 	ApplicationConfigDefault = "application.v3.json"
@@ -163,14 +167,15 @@ func HandleRequest(ctx context.Context, params ApiParams) (string, error) {
 
 	// 5. Move encrypted file to S3
 	fmt.Println("[5] Uploading Archive")
-	err = s3UploadArchive(archive)
+	ipcFileName := params.GetPackageName(UpgradeFilenameSuffix)
+	err = s3UploadArchive(archive, ipcFileName)
 	if err != nil {
 		return "failed uploading to S3", err
 	}
 
 	// 6. Create preshared key and return its url
 	fmt.Println("[6] Create Presigned Link")
-	urlStr, err := s3CreatePresignedDownload()
+	urlStr, err := s3CreatePresignedDownload(ipcFileName)
 	if err != nil {
 		return "failed presigning", err
 	}
@@ -187,13 +192,12 @@ func readConfiguration(cfg *ApiParams) error {
 	var data []byte
 	if len(files) < 1 {
 		// read from S3
-		data, err = s3DownloadResource(ApplicationConfigDefault)
+		data, err = s3DownloadResource(cfg.GetPackageName("json"))
 		if err != nil {
 			return err
 		}
 	} else {
 		// Currently, we use only the latest version
-		// TODO: Make the version configurable
 		data, err = os.ReadFile(files[len(files)-1])
 		if err != nil {
 			return err
