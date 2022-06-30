@@ -19,8 +19,14 @@ import (
 	kmssigner "github.com/sigstore/sigstore/pkg/signature/kms/aws"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
+
+type ApiParams struct {
+	Application string `json:"application"`
+	Version     string `json:"version"`
+}
 
 // PackageContent represents one component to be included in the upgrade package.
 // If IsImage is set true, the component will be pulled by Name and Tag from the ECR registry.
@@ -65,7 +71,7 @@ const (
 	KeyArn                   = "arn:aws:kms:eu-central-1:920225275827:key/b07ed28b-e303-4360-9972-6e650aeb3711"
 	EcrRepository            = "920225275827.dkr.ecr.eu-central-1.amazonaws.com"
 	PrefixOut                = "tmp"
-	DownloadObjectFilename   = "Update.IPC127E.ecs"
+	DownloadObjectFilename   = "Update.IPC127E.ipc"
 	PresignValidDuration     = 5 * time.Minute
 	ApplicationConfigPattern = "application.v*.json"
 	ApplicationConfigDefault = "application.v3.json"
@@ -82,7 +88,7 @@ var (
 
 // HandleRequest is the central handler for the downloader.
 // The 6 steps are described in the function in detail.
-func HandleRequest(ctx context.Context) (string, error) {
+func HandleRequest(ctx context.Context, params ApiParams) (string, error) {
 	// 1. Prepare AWS services
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String("eu-central-1")},
@@ -102,7 +108,7 @@ func HandleRequest(ctx context.Context) (string, error) {
 
 	// 2. Load latest application configuration
 	fmt.Println("[1] Loading application configuration")
-	err = readConfiguration()
+	err = readConfiguration(&params)
 	if err != nil {
 		return "unable to read application configuration", err
 	}
@@ -136,6 +142,16 @@ func HandleRequest(ctx context.Context) (string, error) {
 			return "failed taring", nil
 		}
 	}
+	// 3.1 Add application configuration
+	content := fmt.Sprintf("export APP=%s\nexport VERSION=%s", params.Application, params.Version)
+	fmt.Println("[3.1] Adding app.cfg")
+	signature, err := signer.SignMessage(strings.NewReader(content))
+	if err != nil {
+		return "failed signing", err
+	}
+	if err = addToArchive("app.cfg", []byte(content), signature); err != nil {
+		return "failed taring", nil
+	}
 
 	// 4. Encrypt archive
 	fmt.Println("[4] Encrypting Archive")
@@ -163,7 +179,7 @@ func HandleRequest(ctx context.Context) (string, error) {
 
 // readConfiguration searches for the latest configuration json-file and reads the contents.
 // The contents are parsed as a slice of PackageContent.
-func readConfiguration() error {
+func readConfiguration(cfg *ApiParams) error {
 	files, err := filepath.Glob(ApplicationConfigPattern)
 	if err != nil {
 		return err
