@@ -1,4 +1,4 @@
-package main
+package aws
 
 import (
 	"archive/tar"
@@ -9,16 +9,28 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ecr"
 	"net/http"
+	"sealpack/common"
 )
+
+const EcrRepository = "920225275827.dkr.ecr.eu-central-1.amazonaws.com"
 
 // ecrSession represents the AWS ECR Session.
 var ecrSession *ecr.ECR
+
+// verifyEcrSession test if session is available and if not, create a new one.
+func verifyEcrSession() {
+	verifyAwsSession()
+	if ecrSession == nil {
+		ecrSession = ecr.New(sess)
+	}
+}
 
 // downloadEcrImage downloads a container image as tar file.
 // First, the OCI manifest and subsequently the config json must be obtained from ECS.
 // Then the download URLs for all layers must be individually obtained and the layers must be downloaded.
 // The layers and the config are added to the tar file; a docker manifest is created and also added.
-func downloadEcrImage(content *PackageContent) ([]byte, error) {
+func downloadEcrImage(content *common.PackageContent) ([]byte, error) {
+	verifyEcrSession()
 	// Download image details, which contains the manifest.
 	imageDetails, err := ecrSession.BatchGetImage(&ecr.BatchGetImageInput{
 		RepositoryName: &content.Name,
@@ -30,7 +42,7 @@ func downloadEcrImage(content *PackageContent) ([]byte, error) {
 		return nil, err
 	}
 	// Extract the manifest from the image details.
-	manifest := Manifest{}
+	manifest := common.Manifest{}
 	if err = json.Unmarshal([]byte(*imageDetails.Images[0].ImageManifest), &manifest); err != nil {
 		return nil, err
 	}
@@ -38,7 +50,7 @@ func downloadEcrImage(content *PackageContent) ([]byte, error) {
 	imageTarBuf := new(bytes.Buffer)
 	imageTarWriter := tar.NewWriter(imageTarBuf)
 	// Add base tag
-	om := make([]OutManifest, 1)
+	om := make([]common.OutManifest, 1)
 	om[0].RepoTags = make([]string, 1)
 	om[0].RepoTags[0] = fmt.Sprintf("%s/%s:%s", EcrRepository, content.Name, content.Tag)
 	// Download Config
@@ -47,7 +59,7 @@ func downloadEcrImage(content *PackageContent) ([]byte, error) {
 		return nil, err
 	}
 	om[0].Config = manifest.Config.Digest[7:] + ".json"
-	if err = writeToTar(imageTarWriter, &om[0].Config, data); err != nil {
+	if err = common.WriteToTar(imageTarWriter, &om[0].Config, data); err != nil {
 		return nil, err
 	}
 	// Download and add all layers.
@@ -68,7 +80,7 @@ func downloadEcrImage(content *PackageContent) ([]byte, error) {
 		if _, err = dataBuf.ReadFrom(gunzip); err != nil {
 			return nil, err
 		}
-		if err = writeToTar(imageTarWriter, &om[0].Layers[len(om[0].Layers)-1], dataBuf.Bytes()); err != nil {
+		if err = common.WriteToTar(imageTarWriter, &om[0].Layers[len(om[0].Layers)-1], dataBuf.Bytes()); err != nil {
 			return nil, err
 		}
 	}
@@ -77,7 +89,7 @@ func downloadEcrImage(content *PackageContent) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = writeToTar(imageTarWriter, aws.String("manifest.json"), outManifestBytes); err != nil {
+	if err = common.WriteToTar(imageTarWriter, aws.String("manifest.json"), outManifestBytes); err != nil {
 		return nil, err
 	}
 	if err = imageTarWriter.Close(); err != nil {
@@ -87,7 +99,8 @@ func downloadEcrImage(content *PackageContent) ([]byte, error) {
 }
 
 // downloadLayer requests a download url for a layer, downloads the image and returns it as byte
-func downloadLayer(image *string, config Descriptor) ([]byte, error) {
+func downloadLayer(image *string, config common.Descriptor) ([]byte, error) {
+	verifyEcrSession()
 	download, err := ecrSession.GetDownloadUrlForLayer(&ecr.GetDownloadUrlForLayerInput{
 		RepositoryName: image,
 		LayerDigest:    aws.String(config.Digest),

@@ -1,4 +1,4 @@
-package main
+package aws
 
 import (
 	"encoding/base64"
@@ -6,8 +6,20 @@ import (
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 )
 
+const (
+	SecretName = "dev/aeskey"
+)
+
 // smSession represents the AWS Secrets Manager Session.
 var smSession *secretsmanager.SecretsManager
+
+// verifyEcrSession test if session is available and if not, create a new one.
+func verifySmSession() {
+	verifyAwsSession()
+	if ecrSession == nil {
+		smSession = secretsmanager.New(sess)
+	}
+}
 
 // getEncryptionKey loads the AES encryption key from Secrets Manager.
 // In Secrets Manager it is stored base64-encoded, so it gets decoded and returned as 32-bit binary byte slice.

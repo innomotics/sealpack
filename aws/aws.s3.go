@@ -1,14 +1,29 @@
-package main
+package aws
 
 import (
 	"bytes"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"io/ioutil"
+	"time"
+)
+
+const (
+	BucketName           = "ecs-updater"
+	PrefixOut            = "tmp"
+	PresignValidDuration = 5 * time.Minute
 )
 
 // s3Session represents the AWS S3 Session.
 var s3Session *s3.S3
+
+// verifyS3Session
+func verifyS3Session() {
+	verifyAwsSession()
+	if s3Session == nil {
+		s3Session = s3.New(sess)
+	}
+}
 
 // s3DownloadResource downloads an object by its key and returns the contents as byte slice.
 func s3DownloadResource(key string) ([]byte, error) {
