@@ -8,6 +8,19 @@ import (
 	"time"
 )
 
+// ArchiveContents describes all contents for an archive to provide them as a single file.
+type ArchiveContents struct {
+	Files  []string         `json:"files"`
+	Images []ContainerImage `json:"images"`
+}
+
+// ContainerImage describes a container image uniquely
+type ContainerImage struct {
+	Registry string `json:"registry"`
+	Name     string `json:"name"`
+	Tag      string `json:"tag"`
+}
+
 var (
 	gzipWriter *gzip.Writer
 	tarWriter  *tar.Writer

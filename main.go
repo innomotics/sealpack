@@ -4,12 +4,10 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
-	"encoding/json"
 	"fmt"
 	"github.com/sigstore/sigstore/pkg/signature"
 	"log"
 	"os"
-	"path/filepath"
 	"sealpack/common"
 	"strings"
 )
@@ -26,19 +24,14 @@ var (
 
 // main is the central entrypoint for sealpack.
 func main() {
+	var err error
+
 	// Parse CLI params and config
 	check(common.ParseCommands())
 
-	var err error
+	// Create Signer according to configuration
 	signer, err = common.CreateSigner()
 	check(err)
-
-	// 2. Load latest application configuration
-	fmt.Println("[1] Loading application configuration")
-	err = readConfiguration(&params)
-	if err != nil {
-		return "unable to read application configuration", err
-	}
 
 	// 3. Prepare TARget (pun intended) and add files and signatures
 	fmt.Println("[2] Preparing Archive")
@@ -103,31 +96,6 @@ func main() {
 		return "failed presigning", err
 	}
 	return urlStr, nil
-}
-
-// readConfiguration searches for the latest configuration json-file and reads the contents.
-// The contents are parsed as a slice of PackageContent.
-func readConfiguration(cfg *ApiParams) error {
-	files, err := filepath.Glob(ApplicationConfigPattern)
-	if err != nil {
-		return err
-	}
-	var data []byte
-	if len(files) < 1 {
-		// read from S3
-		data, err = aws2.s3DownloadResource(cfg.GetPackageName("json"))
-		if err != nil {
-			return err
-		}
-	} else {
-		// Currently, we use only the latest version
-		data, err = os.ReadFile(files[len(files)-1])
-		if err != nil {
-			return err
-		}
-	}
-	err = json.Unmarshal(data, &appConfig)
-	return err
 }
 
 // encryptArchive applies an AES GCM encryption on a file represented as a byte slice.
