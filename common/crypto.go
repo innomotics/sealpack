@@ -8,18 +8,16 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"github.com/ovh/symmecrypt"
 	"github.com/ovh/symmecrypt/ciphers/xchacha20poly1305"
 	"github.com/ovh/symmecrypt/keyloader"
 	"github.com/sigstore/sigstore/pkg/signature"
-	"io"
 	"os"
 	"time"
 )
 
 const (
-	KeySizeBytes = 512
+	KeySizeBit = 512
 )
 
 var (
@@ -28,26 +26,25 @@ var (
 )
 
 // loadPrivateKey reads and parses a public key from a file
-func loadPublicKey() error {
+func loadPublicKey(path string) (*rsa.PublicKey, error) {
 	keyBytes, err := os.ReadFile(Unseal.PrivkeyPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	block, _ := pem.Decode(keyBytes)
 	if block == nil {
-		return errors.New("file does not contain PEM data")
+		return nil, errors.New("file does not contain PEM data")
 	}
 	key, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	pubKey = key.(*rsa.PublicKey)
-	return nil
+	return key.(*rsa.PublicKey), nil
 }
 
 // loadPrivateKey reads and parses a private key from a file
 func loadPrivateKey() error {
-	keyBytes, err := os.ReadFile(Seal.PubkeyPath)
+	keyBytes, err := os.ReadFile(Seal.PrivKeyPath)
 	if err != nil {
 		return err
 	}
@@ -63,6 +60,7 @@ func loadPrivateKey() error {
 	return err
 }
 
+// CreatePKISigner uses the private key to create a signature.Signer instance
 func CreatePKISigner() (signature.Signer, error) {
 	err := loadPrivateKey()
 	if err != nil {
@@ -72,8 +70,8 @@ func CreatePKISigner() (signature.Signer, error) {
 }
 
 // encrypt the contents of an os.File with a random key and retrieve the results as []byte
-// The asymmetrically encrypted encryption key is attached als the last [ KeySizeBytes ] bytes
-func encrypt(unencrypted *os.File) ([]byte, error) {
+// The asymmetrically encrypted encryption key is attached als the last [ KeySizeBit ] bytes
+func encrypt(unencrypted []byte) ([]byte, []byte, error) {
 	// No error possible with this static configuration
 	keyConfig, _ := keyloader.GenerateKey(
 		xchacha20poly1305.CipherName, // The recommended cipher
@@ -83,32 +81,16 @@ func encrypt(unencrypted *os.File) ([]byte, error) {
 	)
 	// No error possible with this static configuration
 	key, _ := keyloader.NewKey(keyConfig)
-	_, err := unencrypted.Seek(0, 0)
+	encrypted, err := key.Encrypt(unencrypted)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	bts, err := io.ReadAll(unencrypted)
-	if err != nil {
-		return nil, err
-	}
-	defer os.Remove(unencrypted.Name())
-	encrypted, err := key.Encrypt(bts)
-	if err != nil {
-		return nil, err
-	}
-	encKey, err := rsa.EncryptPKCS1v15(rand.Reader, pubKey, []byte(keyConfig.String()))
-	if err != nil {
-		return nil, err
-	}
-	if len(encKey) != KeySizeBytes {
-		return nil, fmt.Errorf("key size must be %d bytes", KeySizeBytes)
-	}
-	return append(encrypted, encKey...), nil
+	return encrypted, []byte(keyConfig.String()), nil
 }
 
 // decrypt detaches the encryption key, decrypts it with a private key and use it to decrypt the payload
 func decrypt(encryptedData []byte) ([]byte, error) {
-	firstKeyIndex := len(encryptedData) - KeySizeBytes
+	firstKeyIndex := len(encryptedData) - KeySizeBit
 	keyBytes, err := rsa.DecryptPKCS1v15(rand.Reader, privKey, encryptedData[firstKeyIndex:])
 	if err != nil {
 		return nil, err
@@ -124,7 +106,7 @@ func decrypt(encryptedData []byte) ([]byte, error) {
 	return decrypted, nil
 }
 
-// load a key from JSON without configstore
+// extractKey loads a key from JSON without configstore
 func extractKey(keyBytes []byte) (symmecrypt.Key, error) {
 	item := struct {
 		Key string `json:"key"`

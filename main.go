@@ -9,11 +9,11 @@ import (
 	"log"
 	"os"
 	"sealpack/common"
-	"strings"
 )
 
 const (
 	UpgradeFilenameSuffix    = "ipc"
+	TocFileName              = ".sealpack.toc"
 	ApplicationConfigPattern = "application.v*.json"
 )
 
@@ -24,61 +24,71 @@ var (
 
 // main is the central entrypoint for sealpack.
 func main() {
-	var err error
 
 	// Parse CLI params and config
 	check(common.ParseCommands())
 
-	// Create Signer according to configuration
+	if common.IsSealCmd() {
+		check(sealCommand())
+	}
+}
+
+func sealCommand() error {
+	var err error
+
+	// 1. Create Signer according to configuration
+	fmt.Println("[1] Create Signer")
 	signer, err = common.CreateSigner()
 	check(err)
 
-	// 3. Prepare TARget (pun intended) and add files and signatures
-	fmt.Println("[2] Preparing Archive")
-	common.CreateArchive()
+	// 2. Prepare TARget (pun intended) and add files and signatures
+	fmt.Println("[2] Bundling Archive")
+	arc := common.CreateArchive()
+	signatures := common.NewSignatureList()
 	var body []byte
-	var imgName string
-	for _, content := range appConfig {
-		imgName = content.Name
-		if content.IsImage {
-			body, err = aws2.downloadEcrImage(&content)
-			os.WriteFile("test.tar", body, 0775)
-			if err != nil {
-				return "Failed receiving image", err
-			}
-			imgName += ".oci"
-		} else {
-			body, err = aws2.s3DownloadResource(content.Name)
-			if err != nil {
-				return "Failed downloading", err
-			}
-		}
-		fmt.Println("[3] Signing " + content.Name)
-		signature, err := signer.SignMessage(bytes.NewReader(body))
+	for _, content := range common.Seal.Files {
+		body, err = os.ReadFile(content)
 		if err != nil {
-			return "failed signing", err
+			return fmt.Errorf("failed reading file: %v", err)
 		}
-		if err = common.addToArchive(imgName, body, signature); err != nil {
-			return "failed taring", nil
+		if err = signatures.AddFile(content, body); err != nil {
+			return fmt.Errorf("failed hashing file: %v", err)
+		}
+		if err = arc.AddToArchive(content, body); err != nil {
+			return fmt.Errorf("failed adding file to archive: %v", err)
 		}
 	}
-	// 3.1 Add application configuration
-	content := fmt.Sprintf("export APP=%s\nexport VERSION=%s", params.Application, params.Version)
-	fmt.Println("[3.1] Adding app.cfg")
-	signature, err := signer.SignMessage(strings.NewReader(content))
+	for _, content := range common.Seal.Images {
+		body, err = common.SaveImage(&content)
+		if err != nil {
+			return fmt.Errorf("failed reading image: %v", err)
+		}
+		if err = signatures.AddFile(content.ToFileName(), body); err != nil {
+			return fmt.Errorf("failed hashing image: %v", err)
+		}
+		if err = arc.AddToArchive(content.ToFileName(), body); err != nil {
+			return fmt.Errorf("failed adding image to archive: %v", err)
+		}
+	}
+
+	// 3. Add TOC and sign it
+	fmt.Println("[3] Adding TOC")
+	if err = arc.AddToArchive(TocFileName, signatures.Bytes()); err != nil {
+		return fmt.Errorf("failed adding TOC to archive: %v", err)
+	}
+	tocSignature, err := signer.SignMessage(bytes.NewReader(signatures.Bytes()), nil)
 	if err != nil {
-		return "failed signing", err
+		return fmt.Errorf("failed signing TOC: %v", err)
 	}
-	if err = common.addToArchive("app.cfg", []byte(content), signature); err != nil {
-		return "failed taring", nil
+	if err = arc.AddToArchive(TocFileName, tocSignature); err != nil {
+		return fmt.Errorf("failed adding TOC signature to archive: %v", err)
 	}
 
 	// 4. Encrypt archive
 	fmt.Println("[4] Encrypting Archive")
-
-	archive, err := encryptArchive(common.closeArchive())
+	archive, err := arc.Finalize()
 	if err != nil {
-		return "failed encrypting archive", err
+		return fmt.Errorf("failed encrypting archive: %v", err)
 	}
 
 	// 5. Move encrypted file to S3

@@ -8,10 +8,13 @@ import (
 )
 
 type SealConfig struct {
-	PubkeyPath string
-	Files      []string
-	ImageNames []string
-	Images     []ContainerImage
+	PrivKeyPath          string
+	RecipientPubKeyPaths []string
+	Seal                 bool
+	HashingAlgorithm     string
+	Files                []string
+	ImageNames           []string
+	Images               []ContainerImage
 }
 
 type UnsealConfig struct {
@@ -48,22 +51,37 @@ var (
 	Unseal *UnsealConfig
 )
 
+func isCmd(subcmd *cobra.Command) bool {
+	return rootCmd.CalledAs() == subcmd.Use
+}
+
+func IsSealCmd() bool {
+	return isCmd(sealCmd)
+}
+
+func IsUnsealCmd() bool {
+	return isCmd(unsealCmd)
+}
+
 // ParseCommands is configuring all cobra commands and execute them
 func ParseCommands() error {
 	Seal = &SealConfig{}
-	Unseal := &UnsealConfig{}
+	Unseal = &UnsealConfig{}
 
 	rootCmd.Commands()
 
 	rootCmd.AddCommand(sealCmd)
-	sealCmd.Flags().StringVarP(&Seal.PubkeyPath, "pubkey", "p", "", "Path to the public key")
+	sealCmd.Flags().StringVarP(&Seal.PrivKeyPath, "privkey", "p", "", "Path to the private signing key. AWS KMS keys can be used with awskms:/// prefix.")
+	sealCmd.Flags().StringSliceVarP(&Seal.RecipientPubKeyPaths, "recipient-pubkey", "r", make([]string, 0), "Paths of recipients' public keys.")
 	var contents string
 	sealCmd.Flags().StringVarP(&contents, "contents", "c", "", "Provide all contents as a central configurations file")
+	sealCmd.Flags().BoolVarP(&Seal.Seal, "seal", "s", true, "Whether to seal the archive after packing")
 	sealCmd.Flags().StringSliceVarP(&Seal.Files, "file", "f", make([]string, 0), "Path to the files to be added")
 	sealCmd.Flags().StringSliceVarP(&Seal.ImageNames, "image", "i", make([]string, 0), "Name of container images to be added")
+	sealCmd.Flags().StringVarP(&Seal.HashingAlgorithm, "hashing-algorithm", "h", "SHA3_512", "Name of hashing algorithm to be used")
 
 	rootCmd.AddCommand(unsealCmd)
-	unsealCmd.Flags().StringVarP(&Unseal.PrivkeyPath, "privkey", "p", "", "Path to the private key")
+	unsealCmd.Flags().StringVarP(&Unseal.PrivkeyPath, "pubkey", "p", "", "Path to the private key")
 	unsealCmd.Flags().StringVarP(&Unseal.TargetPath, "target", "t", ".", "Target path to unpack the contents to")
 
 	var err error
@@ -71,15 +89,16 @@ func ParseCommands() error {
 		return err
 	}
 
-	if contents != "" {
-		if err = readConfiguration(contents); err != nil {
-			return err
+	if IsSealCmd() {
+		if contents != "" {
+			if err = readConfiguration(contents); err != nil {
+				return err
+			}
+		}
+		if len(Seal.ImageNames) > 0 {
+			parseImages()
 		}
 	}
-	if len(Seal.ImageNames) > 0 {
-		parseImages()
-	}
-
 	return nil
 }
 

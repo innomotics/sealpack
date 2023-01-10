@@ -53,8 +53,8 @@ type Signer struct {
 }
 
 func CreateSigner() (signature.Signer, error) {
-	if strings.HasPrefix(Seal.PubkeyPath, "awskms:///") {
-		return aws.CreateKmsSigner(Seal.PubkeyPath)
+	if strings.HasPrefix(Seal.PrivKeyPath, "awskms:///") {
+		return aws.CreateKmsSigner(Seal.PrivKeyPath)
 	}
 	// TODO: other potential signing modules
 	return CreatePKISigner()
