@@ -15,6 +15,7 @@ type SealConfig struct {
 	Files                []string
 	ImageNames           []string
 	Images               []ContainerImage
+	Output               string
 }
 
 type UnsealConfig struct {
@@ -71,8 +72,11 @@ func ParseCommands() error {
 	rootCmd.Commands()
 
 	rootCmd.AddCommand(sealCmd)
-	sealCmd.Flags().StringVarP(&Seal.PrivKeyPath, "privkey", "p", "", "Path to the private signing key. AWS KMS keys can be used with awskms:/// prefix.")
-	sealCmd.Flags().StringSliceVarP(&Seal.RecipientPubKeyPaths, "recipient-pubkey", "r", make([]string, 0), "Paths of recipients' public keys.")
+	sealCmd.Flags().StringVarP(&Seal.PrivKeyPath, "privkey", "p", "", "Path to the private signing key. AWS KMS keys can be used with awskms:/// prefix")
+	sealCmd.Flags().StringSliceVarP(&Seal.RecipientPubKeyPaths, "recipient-pubkey", "r", make([]string, 0), "Paths of recipients' public keys")
+	sealCmd.Flags().StringVarP(&Seal.Output, "output", "o", "", "Filename to store the result in")
+	_ = sealCmd.MarkFlagRequired("privkey")
+	_ = sealCmd.MarkFlagRequired("recipient-pubkey")
 	var contents string
 	sealCmd.Flags().StringVarP(&contents, "contents", "c", "", "Provide all contents as a central configurations file")
 	sealCmd.Flags().BoolVarP(&Seal.Seal, "seal", "s", true, "Whether to seal the archive after packing")

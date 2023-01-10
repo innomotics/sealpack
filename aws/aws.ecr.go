@@ -12,8 +12,6 @@ import (
 	"sealpack/common"
 )
 
-const EcrRepository = "920225275827.dkr.ecr.eu-central-1.amazonaws.com"
-
 // ecrSession represents the AWS ECR Session.
 var ecrSession *ecr.ECR
 
@@ -29,7 +27,7 @@ func verifyEcrSession() {
 // First, the OCI manifest and subsequently the config json must be obtained from ECS.
 // Then the download URLs for all layers must be individually obtained and the layers must be downloaded.
 // The layers and the config are added to the tar file; a docker manifest is created and also added.
-func downloadEcrImage(content *common.PackageContent) ([]byte, error) {
+func downloadEcrImage(content *common.ContainerImage) ([]byte, error) {
 	verifyEcrSession()
 	// Download image details, which contains the manifest.
 	imageDetails, err := ecrSession.BatchGetImage(&ecr.BatchGetImageInput{
@@ -52,7 +50,7 @@ func downloadEcrImage(content *common.PackageContent) ([]byte, error) {
 	// Add base tag
 	om := make([]common.OutManifest, 1)
 	om[0].RepoTags = make([]string, 1)
-	om[0].RepoTags[0] = fmt.Sprintf("%s/%s:%s", EcrRepository, content.Name, content.Tag)
+	om[0].RepoTags[0] = fmt.Sprintf("%s/%s:%s", content.Registry, content.Name, content.Tag)
 	// Download Config
 	data, err := downloadLayer(&content.Name, manifest.Config)
 	if err != nil {

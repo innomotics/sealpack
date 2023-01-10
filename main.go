@@ -2,8 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/aes"
-	"crypto/cipher"
 	"fmt"
 	"github.com/sigstore/sigstore/pkg/signature"
 	"log"
@@ -12,9 +10,8 @@ import (
 )
 
 const (
-	UpgradeFilenameSuffix    = "ipc"
-	TocFileName              = ".sealpack.toc"
-	ApplicationConfigPattern = "application.v*.json"
+	UpgradeFilenameSuffix = "ipc"
+	TocFileName           = ".sealpack.toc"
 )
 
 var (
@@ -37,12 +34,12 @@ func sealCommand() error {
 	var err error
 
 	// 1. Create Signer according to configuration
-	fmt.Println("[1] Create Signer")
+	_, _ = fmt.Fprintln(os.Stderr, "[1] Create Signer")
 	signer, err = common.CreateSigner()
 	check(err)
 
 	// 2. Prepare TARget (pun intended) and add files and signatures
-	fmt.Println("[2] Bundling Archive")
+	_, _ = fmt.Fprintln(os.Stderr, "[2] Bundling Archive")
 	arc := common.CreateArchive()
 	signatures := common.NewSignatureList()
 	var body []byte
@@ -72,7 +69,7 @@ func sealCommand() error {
 	}
 
 	// 3. Add TOC and sign it
-	fmt.Println("[3] Adding TOC")
+	_, _ = fmt.Fprintln(os.Stderr, "[3] Adding TOC")
 	if err = arc.AddToArchive(TocFileName, signatures.Bytes()); err != nil {
 		return fmt.Errorf("failed adding TOC to archive: %v", err)
 	}
@@ -85,46 +82,15 @@ func sealCommand() error {
 	}
 
 	// 4. Encrypt archive
-	fmt.Println("[4] Encrypting Archive")
+	_, _ = fmt.Fprintln(os.Stderr, "[4] Encrypting Archive")
 	archive, err := arc.Finalize()
 	if err != nil {
 		return fmt.Errorf("failed encrypting archive: %v", err)
 	}
 
 	// 5. Move encrypted file to S3
-	fmt.Println("[5] Uploading Archive")
-	ipcFileName := params.GetPackageName(UpgradeFilenameSuffix)
-	err = aws2.s3UploadArchive(archive, ipcFileName)
-	if err != nil {
-		return "failed uploading to S3", err
-	}
-
-	// 6. Create preshared key and return its url
-	fmt.Println("[6] Create Presigned Link")
-	urlStr, err := aws2.s3CreatePresignedDownload(ipcFileName)
-	if err != nil {
-		return "failed presigning", err
-	}
-	return urlStr, nil
-}
-
-// encryptArchive applies an AES GCM encryption on a file represented as a byte slice.
-// The result is an encrypted file, represented again as a byte slice.
-func encryptArchive(body []byte) ([]byte, error) {
-	aesKey, err := aws2.getEncryptionKey()
-	if err != nil {
-		return nil, err
-	}
-	block, err := aes.NewCipher(aesKey)
-	if err != nil {
-		return nil, err
-	}
-	aesGCM, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-	nonce := make([]byte, aesGCM.NonceSize())
-	return aesGCM.Seal(nil, nonce, body, nil), nil
+	_, _ = fmt.Fprintln(os.Stderr, "[5] Save Archive")
+	return common.WriteFile(archive)
 }
 
 func check(err error, plus ...string) {
