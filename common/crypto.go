@@ -25,9 +25,9 @@ var (
 	privKey *rsa.PrivateKey
 )
 
-// loadPrivateKey reads and parses a public key from a file
-func loadPublicKey(path string) (*rsa.PublicKey, error) {
-	keyBytes, err := os.ReadFile(Unseal.PrivkeyPath)
+// LoadPublicKey reads and parses a public key from a file
+func LoadPublicKey(path string) (*rsa.PublicKey, error) {
+	keyBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -66,12 +66,12 @@ func CreatePKISigner() (signature.Signer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return signature.LoadSigner(privKey, crypto.SHA3_512)
+	return signature.LoadSigner(privKey, crypto.SHA512)
 }
 
-// encrypt the contents of an os.File with a random key and retrieve the results as []byte
+// Encrypt the contents of an os.File with a random key and retrieve the results as []byte
 // The asymmetrically encrypted encryption key is attached als the last [ KeySizeBit ] bytes
-func encrypt(unencrypted []byte) ([]byte, []byte, error) {
+func Encrypt(unencrypted []byte) ([]byte, []byte, error) {
 	// No error possible with this static configuration
 	keyConfig, _ := keyloader.GenerateKey(
 		xchacha20poly1305.CipherName, // The recommended cipher
@@ -85,7 +85,7 @@ func encrypt(unencrypted []byte) ([]byte, []byte, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	return encrypted, []byte(keyConfig.String()), nil
+	return encrypted, []byte(keyConfig.Key), nil
 }
 
 // decrypt detaches the encryption key, decrypts it with a private key and use it to decrypt the payload

@@ -3,7 +3,9 @@ package common
 import (
 	"encoding/json"
 	"github.com/spf13/cobra"
+	"log"
 	"os"
+	"sealpack/shared"
 	"strings"
 )
 
@@ -14,7 +16,7 @@ type SealConfig struct {
 	HashingAlgorithm     string
 	Files                []string
 	ImageNames           []string
-	Images               []ContainerImage
+	Images               []shared.ContainerImage
 	Output               string
 }
 
@@ -38,7 +40,17 @@ var (
 	sealCmd = &cobra.Command{
 		Use:   "seal",
 		Short: "Create sealed archive",
-		Long:  "Triggers the package creation based on a udev systemd trigger once instead of polling USB devices",
+		Long:  "Create a sealed package",
+		PreRun: func(cmd *cobra.Command, args []string) {
+			if contents != "" {
+				if err := readConfiguration(contents); err != nil {
+					log.Fatal("invalid configuration file provided")
+				}
+			}
+			if len(Seal.ImageNames) > 0 {
+				parseImages()
+			}
+		},
 	}
 	// unsealCmd describes the `unpack` subcommand as cobra.Command
 	unsealCmd = &cobra.Command{
@@ -48,20 +60,17 @@ var (
 		Args:  cobra.ExactArgs(1),
 	}
 
-	Seal   *SealConfig
-	Unseal *UnsealConfig
+	contents string
+	Seal     *SealConfig
+	Unseal   *UnsealConfig
 )
 
-func isCmd(subcmd *cobra.Command) bool {
-	return rootCmd.CalledAs() == subcmd.Use
-}
-
 func IsSealCmd() bool {
-	return isCmd(sealCmd)
+	return sealCmd.CalledAs() == "seal"
 }
 
 func IsUnsealCmd() bool {
-	return isCmd(unsealCmd)
+	return unsealCmd.CalledAs() == "unseal"
 }
 
 // ParseCommands is configuring all cobra commands and execute them
@@ -77,33 +86,17 @@ func ParseCommands() error {
 	sealCmd.Flags().StringVarP(&Seal.Output, "output", "o", "", "Filename to store the result in")
 	_ = sealCmd.MarkFlagRequired("privkey")
 	_ = sealCmd.MarkFlagRequired("recipient-pubkey")
-	var contents string
 	sealCmd.Flags().StringVarP(&contents, "contents", "c", "", "Provide all contents as a central configurations file")
 	sealCmd.Flags().BoolVarP(&Seal.Seal, "seal", "s", true, "Whether to seal the archive after packing")
 	sealCmd.Flags().StringSliceVarP(&Seal.Files, "file", "f", make([]string, 0), "Path to the files to be added")
 	sealCmd.Flags().StringSliceVarP(&Seal.ImageNames, "image", "i", make([]string, 0), "Name of container images to be added")
-	sealCmd.Flags().StringVarP(&Seal.HashingAlgorithm, "hashing-algorithm", "h", "SHA3_512", "Name of hashing algorithm to be used")
+	sealCmd.Flags().StringVarP(&Seal.HashingAlgorithm, "hashing-algorithm", "a", "SHA3_512", "Name of hashing algorithm to be used")
 
 	rootCmd.AddCommand(unsealCmd)
 	unsealCmd.Flags().StringVarP(&Unseal.PrivkeyPath, "pubkey", "p", "", "Path to the private key")
 	unsealCmd.Flags().StringVarP(&Unseal.TargetPath, "target", "t", ".", "Target path to unpack the contents to")
 
-	var err error
-	if err = rootCmd.Execute(); err != nil {
-		return err
-	}
-
-	if IsSealCmd() {
-		if contents != "" {
-			if err = readConfiguration(contents); err != nil {
-				return err
-			}
-		}
-		if len(Seal.ImageNames) > 0 {
-			parseImages()
-		}
-	}
-	return nil
+	return rootCmd.Execute()
 }
 
 // readConfiguration searches for the latest configuration json-file and reads the contents.
@@ -113,7 +106,7 @@ func readConfiguration(params string) error {
 	if err != nil {
 		return err
 	}
-	var contents ArchiveContents
+	var contents shared.ArchiveContents
 	err = json.Unmarshal(data, &contents)
 	if err != nil {
 		return err
@@ -126,7 +119,7 @@ func readConfiguration(params string) error {
 // parseImages parses container images into ContainerImage format.
 func parseImages() {
 	for _, img := range Seal.ImageNames {
-		image := ContainerImage{}
+		image := shared.ContainerImage{}
 		reg := strings.SplitN(img, "/", 1)
 		if len(reg) < 2 { // No registry provided; assume docker hub
 			image.Registry = DefaultRegistry

@@ -2,11 +2,15 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
 	"fmt"
 	"github.com/sigstore/sigstore/pkg/signature"
+	"github.com/sigstore/sigstore/pkg/signature/options"
 	"log"
 	"os"
 	"sealpack/common"
+	"sealpack/shared"
 )
 
 const (
@@ -40,7 +44,7 @@ func sealCommand() error {
 
 	// 2. Prepare TARget (pun intended) and add files and signatures
 	_, _ = fmt.Fprintln(os.Stderr, "[2] Bundling Archive")
-	arc := common.CreateArchive()
+	arc := shared.CreateArchive()
 	signatures := common.NewSignatureList()
 	var body []byte
 	for _, content := range common.Seal.Files {
@@ -73,7 +77,8 @@ func sealCommand() error {
 	if err = arc.AddToArchive(TocFileName, signatures.Bytes()); err != nil {
 		return fmt.Errorf("failed adding TOC to archive: %v", err)
 	}
-	tocSignature, err := signer.SignMessage(bytes.NewReader(signatures.Bytes()), nil)
+	reader := bytes.NewReader(signatures.Bytes())
+	tocSignature, err := signer.SignMessage(reader, options.NoOpOptionImpl{})
 	if err != nil {
 		return fmt.Errorf("failed signing TOC: %v", err)
 	}
@@ -87,10 +92,33 @@ func sealCommand() error {
 	if err != nil {
 		return fmt.Errorf("failed encrypting archive: %v", err)
 	}
+	// Now create encryption key and seal them for all recipients
+	envelope := shared.Envelope{
+		HashAlgorithm: common.GetConfiguredHashAlgorithm(),
+	}
+	var symKey []byte
+	if envelope.PayloadEncrypted, symKey, err = common.Encrypt(archive); err != nil {
+		return err
+	}
+	envelope.NumReceivers = uint16(len(common.Seal.RecipientPubKeyPaths))
+	envelope.ReceiverKeys = make([][]byte, envelope.NumReceivers)
+	for iKey, recipientPubKeyPath := range common.Seal.RecipientPubKeyPaths {
+		var recPubKey *rsa.PublicKey
+		if recPubKey, err = common.LoadPublicKey(recipientPubKeyPath); err != nil {
+			return err
+		}
+		if envelope.ReceiverKeys[iKey], err = rsa.EncryptPKCS1v15(rand.Reader, recPubKey, symKey); err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintf(os.Stderr, "keys: %v %v\n", len(envelope.ReceiverKeys[iKey]), recPubKey.Size())
+		if len(envelope.ReceiverKeys[iKey]) != recPubKey.Size() {
+			return fmt.Errorf("key size must be %d bits", common.KeySizeBit)
+		}
+	}
 
 	// 5. Move encrypted file to S3
 	_, _ = fmt.Fprintln(os.Stderr, "[5] Save Archive")
-	return common.WriteFile(archive)
+	return common.WriteFile(envelope.ToBytes())
 }
 
 func check(err error, plus ...string) {

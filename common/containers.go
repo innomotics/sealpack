@@ -1,43 +1,37 @@
 package common
 
 import (
-	"context"
 	"fmt"
-	"github.com/containers/podman/v4/cmd/podman/registry"
-	"github.com/containers/podman/v4/pkg/domain/entities"
+	"github.com/google/go-containerregistry/pkg/crane"
 	"golang.org/x/sys/unix"
 	"io"
 	"os"
 	"path/filepath"
+	"sealpack/shared"
 )
 
 // SaveImage with podman's Image registry.
 // Functionality implemented according to "podman image save"
-func SaveImage(img *ContainerImage) (result []byte, finalErr error) {
-	var done = false
-	pipePath, cleanup, err := setupPipe()
+func SaveImage(img *shared.ContainerImage) (result []byte, err error) {
+	tmpfile, err := os.CreateTemp("", "crane.dl")
 	if err != nil {
 		return nil, err
 	}
-	if cleanup != nil {
-		defer func() {
-			errc := cleanup()
-			if done {
-				writeErr := <-errc
-				if writeErr != nil && finalErr == nil {
-					finalErr = writeErr
-				}
-			}
-		}()
+	defer os.Remove(tmpfile.Name())
+	if _, err = io.Copy(tmpfile, os.Stdin); err != nil {
+		return nil, err
 	}
-	saveOpts := entities.ImageSaveOptions{
-		Format: "oci-archive",
-		Output: pipePath,
+	image, err := crane.Pull(img.String())
+	if err != nil {
+		return nil, err
 	}
-	if err = registry.ImageEngine().Save(context.Background(), img.String(), nil, saveOpts); err == nil {
-		done = true
+	if err = crane.SaveOCI(image, tmpfile.Name()); err != nil {
+		return nil, err
 	}
-	if result, err = os.ReadFile(pipePath); err != nil {
+	if err = tmpfile.Close(); err != nil {
+		return nil, err
+	}
+	if result, err = os.ReadFile(tmpfile.Name()); err != nil {
 		return nil, err
 	}
 	return result, err
