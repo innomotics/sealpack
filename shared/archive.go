@@ -5,15 +5,41 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto"
+	"encoding/binary"
+	"fmt"
 	"io"
+	"strings"
 	"time"
 )
+
+func ParseEnvelope(input []byte) (*Envelope, error) {
+	if !bytes.HasPrefix(input, []byte(EnvelopeMagicBytes)) {
+		return nil, fmt.Errorf("not a valid sealpack file")
+	}
+	offset := len(EnvelopeMagicBytes)
+	envel := &Envelope{
+		HashAlgorithm: crypto.Hash(input[offset]),
+	}
+	offset++ // Beginning of 8 bytes little endian payload length
+	payloadLen := int(binary.LittleEndian.Uint64(input[offset : offset+8]))
+	offset += 8 // Beginning of payload
+	envel.PayloadEncrypted = input[offset : offset+payloadLen]
+	offset += payloadLen
+	inputLen := len(input)
+	var keyLen int
+	for offset < inputLen {
+		keyLen = int(input[offset]) * 8
+		offset++
+		envel.ReceiverKeys = append(envel.ReceiverKeys, input[offset:offset+keyLen])
+		offset += keyLen
+	}
+	return envel, nil
+}
 
 // Envelope is the package with headers and so on
 type Envelope struct {
 	PayloadEncrypted []byte
 	HashAlgorithm    crypto.Hash
-	NumReceivers     uint16
 	ReceiverKeys     [][]byte
 }
 
@@ -22,13 +48,28 @@ func (e *Envelope) ToBytes() []byte {
 	result := append(
 		[]byte(EnvelopeMagicBytes),
 		byte(e.HashAlgorithm),
-		uint8(e.NumReceivers>>8),
-		uint8(e.NumReceivers&0xff),
 	)
+	// Payload Length
+	payloadLen := make([]byte, 8)
+	binary.LittleEndian.PutUint64(payloadLen, uint64(len(e.PayloadEncrypted)))
+	result = append(result, payloadLen...)
+	// Then the Payload
+	result = append(result, e.PayloadEncrypted...)
+	// Finally, the receivers' keys prefixed with their digest sizes in bytes
 	for _, key := range e.ReceiverKeys {
+		result = append(result, uint8(len(key)/8))
 		result = append(result, key...)
 	}
 	return result
+}
+
+func (e *Envelope) String() string {
+	sb := strings.Builder{}
+	sb.WriteString("File is a sealed package.\n")
+	sb.WriteString(fmt.Sprintf("\tPayload size (compressed): %d Bytes\n", len(e.PayloadEncrypted)))
+	sb.WriteString(fmt.Sprintf("\tSingatures hashed using %s (%d Bit)\n", e.HashAlgorithm.String(), e.HashAlgorithm.Size()))
+	sb.WriteString(fmt.Sprintf("\tSealed for %d Recievers\n", len(e.ReceiverKeys)))
+	return sb.String()
 }
 
 const (
@@ -38,8 +79,7 @@ const (
 type Archive struct {
 	compressWriter io.Writer
 	tarWriter      *tar.Writer
-	//	tarOut     *bufio.Writer
-	buffer *bytes.Buffer
+	buffer         *bytes.Buffer
 }
 
 /**
@@ -83,7 +123,8 @@ func (arc *Archive) AddToArchive(imgName string, contents []byte) error {
 
 // WriteToTar adds a file to a writer using a filename and a byte slice with contents to be written.
 func WriteToTar(w *tar.Writer, filename *string, contents []byte) error {
-	if err := w.WriteHeader(&tar.Header{
+	var err error
+	if err = w.WriteHeader(&tar.Header{
 		Name:    *filename,
 		Size:    int64(len(contents)),
 		Mode:    0755,
@@ -91,6 +132,9 @@ func WriteToTar(w *tar.Writer, filename *string, contents []byte) error {
 	}); err != nil {
 		return err
 	}
-	_, err := w.Write(contents)
-	return err
+	_, err = w.Write(contents)
+	if err != nil {
+		return err
+	}
+	return w.Flush()
 }

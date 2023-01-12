@@ -3,7 +3,35 @@ package common
 import (
 	"github.com/sigstore/sigstore/pkg/signature"
 	"sealpack/aws"
+	"sealpack/shared"
 	"strings"
+)
+
+type SealConfig struct {
+	PrivKeyPath          string
+	RecipientPubKeyPaths []string
+	Seal                 bool
+	HashingAlgorithm     string
+	Files                []string
+	ImageNames           []string
+	Images               []shared.ContainerImage
+	Output               string
+}
+
+type UnsealConfig struct {
+	PrivkeyPath string
+	TargetPath  string
+}
+
+const (
+	DefaultRegistry = "docker.io"
+	DefaultTag      = "latest"
+)
+
+var (
+	SealedFile string
+	Seal       *SealConfig
+	Unseal     *UnsealConfig
 )
 
 type PackageContent interface {

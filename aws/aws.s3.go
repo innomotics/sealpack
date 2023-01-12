@@ -79,7 +79,7 @@ func S3UploadArchive(contents []byte, uri string) error {
 
 // parseS3Uri parses a string-based URI with a s3:// file wrapper to bucket and key
 func parseS3Uri(s3uri string) (*S3Uri, error) {
-	parts := strings.SplitN(strings.TrimPrefix(s3uri, S3UriPrefix), "/", 1)
+	parts := strings.SplitN(strings.TrimPrefix(s3uri, S3UriPrefix), "/", 2)
 	if len(parts) < 2 {
 		return nil, fmt.Errorf("invalid S3 URI")
 	}

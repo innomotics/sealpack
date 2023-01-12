@@ -14,8 +14,7 @@ import (
 )
 
 const (
-	UpgradeFilenameSuffix = "ipc"
-	TocFileName           = ".sealpack.toc"
+	TocFileName = ".sealpack.toc"
 )
 
 var (
@@ -27,11 +26,7 @@ var (
 func main() {
 
 	// Parse CLI params and config
-	check(common.ParseCommands())
-
-	if common.IsSealCmd() {
-		check(sealCommand())
-	}
+	check(ParseCommands())
 }
 
 func sealCommand() error {
@@ -100,8 +95,7 @@ func sealCommand() error {
 	if envelope.PayloadEncrypted, symKey, err = common.Encrypt(archive); err != nil {
 		return err
 	}
-	envelope.NumReceivers = uint16(len(common.Seal.RecipientPubKeyPaths))
-	envelope.ReceiverKeys = make([][]byte, envelope.NumReceivers)
+	envelope.ReceiverKeys = make([][]byte, len(common.Seal.RecipientPubKeyPaths))
 	for iKey, recipientPubKeyPath := range common.Seal.RecipientPubKeyPaths {
 		var recPubKey *rsa.PublicKey
 		if recPubKey, err = common.LoadPublicKey(recipientPubKeyPath); err != nil {
@@ -110,15 +104,27 @@ func sealCommand() error {
 		if envelope.ReceiverKeys[iKey], err = rsa.EncryptPKCS1v15(rand.Reader, recPubKey, symKey); err != nil {
 			return err
 		}
-		_, _ = fmt.Fprintf(os.Stderr, "keys: %v %v\n", len(envelope.ReceiverKeys[iKey]), recPubKey.Size())
 		if len(envelope.ReceiverKeys[iKey]) != recPubKey.Size() {
 			return fmt.Errorf("key size must be %d bits", common.KeySizeBit)
 		}
 	}
 
-	// 5. Move encrypted file to S3
+	// 5. Store encrypted file
 	_, _ = fmt.Fprintln(os.Stderr, "[5] Save Archive")
 	return common.WriteFile(envelope.ToBytes())
+}
+
+func inspectCommand() error {
+	raw, err := os.ReadFile(common.SealedFile)
+	if err != nil {
+		return err
+	}
+	envelope, err := shared.ParseEnvelope(raw)
+	if err != nil {
+		return err
+	}
+	fmt.Println(envelope.String())
+	return nil
 }
 
 func check(err error, plus ...string) {
