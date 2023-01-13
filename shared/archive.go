@@ -76,10 +76,16 @@ const (
 	EnvelopeMagicBytes = "\xDBIPC" // ASCII sum of "ECS" = 333(octal) or DB(hex)
 )
 
-type Archive struct {
+type WriteArchive struct {
 	compressWriter io.Writer
 	tarWriter      *tar.Writer
 	buffer         *bytes.Buffer
+}
+
+type ReadArchive struct {
+	compressReader io.Reader
+	TarReader      *tar.Reader
+	reader         *bytes.Reader
 }
 
 /**
@@ -89,8 +95,8 @@ type Archive struct {
 // CreateArchive opens a stream of writers (tar to gzip to buffer).
 // Bytes added to the stream will be added to the tar.gz archive.
 // It can be retrieved through the buffer as byte slice.
-func CreateArchive() *Archive {
-	arc := &Archive{
+func CreateArchive() *WriteArchive {
+	arc := &WriteArchive{
 		buffer: new(bytes.Buffer),
 	}
 	arc.compressWriter = gzip.NewWriter(arc.buffer)
@@ -98,9 +104,22 @@ func CreateArchive() *Archive {
 	return arc
 }
 
+// OpenArchive opens a compressed tar archive for reading
+func OpenArchive(data []byte) (arc *ReadArchive, err error) {
+	arc = &ReadArchive{
+		reader: bytes.NewReader(data),
+	}
+	arc.compressReader, err = gzip.NewReader(arc.reader)
+	if err != nil {
+		return nil, err
+	}
+	arc.TarReader = tar.NewReader(arc.compressReader)
+	return arc, nil
+}
+
 // Finalize closes the tar and gzip writers and retrieves the archive.
 // In addition
-func (arc *Archive) Finalize() ([]byte, error) {
+func (arc *WriteArchive) Finalize() ([]byte, error) {
 	// Finish archive packaging and get contents
 	var err error
 	_, closeable := arc.compressWriter.(interface{}).(io.Closer)
@@ -117,7 +136,7 @@ func (arc *Archive) Finalize() ([]byte, error) {
 
 // AddToArchive adds a new file identified by its name to the tar.gz archive.
 // The contents are added as byte slices.
-func (arc *Archive) AddToArchive(imgName string, contents []byte) error {
+func (arc *WriteArchive) AddToArchive(imgName string, contents []byte) error {
 	return WriteToTar(arc.tarWriter, &imgName, contents)
 }
 

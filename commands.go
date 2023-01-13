@@ -46,10 +46,14 @@ var (
 	}
 	// unsealCmd describes the `unpack` subcommand as cobra.Command
 	unsealCmd = &cobra.Command{
-		Use:   "unseal [path to sealed file]",
+		Use:   "unseal",
 		Short: "Unpacks a sealed archive",
 		Long:  "Unpacks a sealed archive if the provided private key is valid",
 		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			common.SealedFile = args[0]
+			check(unsealCommand())
+		},
 	}
 
 	contents string
@@ -89,8 +93,12 @@ func ParseCommands() error {
 	rootCmd.AddCommand(inspectCmd)
 
 	rootCmd.AddCommand(unsealCmd)
-	unsealCmd.Flags().StringVarP(&common.Unseal.PrivkeyPath, "pubkey", "p", "", "Path to the private key")
-	unsealCmd.Flags().StringVarP(&common.Unseal.TargetPath, "target", "t", ".", "Target path to unpack the contents to")
+	unsealCmd.Flags().StringVarP(&common.Unseal.PrivKeyPath, "privkey", "p", "", "Private key of the receiver")
+	unsealCmd.Flags().StringVarP(&common.Unseal.SigningKeyPath, "signer-key", "s", "", "Public key of the signing entity")
+	unsealCmd.Flags().StringVarP(&common.Unseal.OutputPath, "output", "o", "output", "Output path to unpack the contents to")
+	_ = sealCmd.MarkFlagRequired("privkey")
+	_ = sealCmd.MarkFlagRequired("signer-key")
+	unsealCmd.Flags().StringVarP(&common.Unseal.HashingAlgorithm, "hashing-algorithm", "a", "SHA3_512", "Name of hashing algorithm to be used")
 
 	return rootCmd.Execute()
 }

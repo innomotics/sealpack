@@ -19,8 +19,10 @@ type SealConfig struct {
 }
 
 type UnsealConfig struct {
-	PrivkeyPath string
-	TargetPath  string
+	PrivKeyPath      string
+	SigningKeyPath   string
+	OutputPath       string
+	HashingAlgorithm string
 }
 
 const (

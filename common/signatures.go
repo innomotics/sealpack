@@ -35,17 +35,17 @@ var (
 	hashAlgo hash.Hash
 )
 
-func GetConfiguredHashAlgorithm() crypto.Hash {
-	h, ok := availableHashes[Seal.HashingAlgorithm]
+func GetConfiguredHashAlgorithm(algo string) crypto.Hash {
+	h, ok := availableHashes[algo]
 	if !ok {
 		h = crypto.SHA3_512
 	}
 	return h
 }
 
-func NewSignatureList() *FileSignatures {
+func NewSignatureList(algo string) *FileSignatures {
 	s := &FileSignatures{}
-	hashAlgo = GetConfiguredHashAlgorithm().New()
+	hashAlgo = GetConfiguredHashAlgorithm(algo).New()
 	return s
 }
 
@@ -68,4 +68,13 @@ func (f *FileSignatures) Bytes() []byte {
 
 func (f *FileSignatures) Save(name string) error {
 	return os.WriteFile(name, f.Bytes(), 0777)
+}
+
+func (f *FileSignatures) Equals(other *FileSignatures) bool {
+	for k, v := range *f {
+		if (*other)[k] != v {
+			return false
+		}
+	}
+	return true
 }

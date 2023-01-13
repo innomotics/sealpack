@@ -45,31 +45,31 @@ func Test_loadPublicKeyIsPrvate(t *testing.T) {
 }
 
 // //////////////////////
-// Test loadPrivateKey //
+// Test LoadPrivateKey //
 // //////////////////////
 func Test_loadPrivateKey(t *testing.T) {
 	PrivateKeyPath = filepath.Join(filepath.Clean("../test"), "private.pem")
-	assert.Nil(t, loadPrivateKey())
+	assert.Nil(t, LoadPrivateKey())
 	assert.NotNil(t, privKey)
 	assert.Equal(t, 512, privKey.Size()) // PrivateKey of 4096 RSA is 512 bytes
 }
 func Test_loadPrivateKeyNotFound(t *testing.T) {
 	PrivateKeyPath = filepath.Join(filepath.Clean("../test"), "private.nonexistent")
-	err := loadPrivateKey()
+	err := LoadPrivateKey()
 	assert.NotNil(t, err)
 	assert.True(t, os.IsNotExist(err))
 }
 func Test_loadPrivateKeyNotAKey(t *testing.T) {
 	PrivateKeyPath = filepath.Join(filepath.Clean("../test"), "private.fake")
 	assert.NoError(t, os.WriteFile(PrivateKeyPath, []byte("THIS IS NOT A KEY"), 0777))
-	err := loadPrivateKey()
+	err := LoadPrivateKey()
 	assert.NotNil(t, err)
 	assert.Contains(t, "file does not contain PEM data", err.Error())
 	assert.NoError(t, os.Remove(PrivateKeyPath))
 }
 func Test_loadPrivateKeyIsPublic(t *testing.T) {
 	PrivateKeyPath = filepath.Join(filepath.Clean("../test"), "public.pem")
-	err := loadPrivateKey()
+	err := LoadPrivateKey()
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "structure error")
 }
@@ -82,7 +82,7 @@ func Test_encryptDecrypt(t *testing.T) {
 	PubKeyPath = filepath.Join(filepath.Clean("../test"), "public.pem")
 	PrivateKeyPath = filepath.Join(filepath.Clean("../test"), "private.pem")
 	assert.Nil(t, LoadPublicKey())
-	assert.Nil(t, loadPrivateKey())
+	assert.Nil(t, LoadPrivateKey())
 
 	// 2. Act
 	fileToCopy := filepath.Join(filepath.Clean("../test"), "test_config.yaml")

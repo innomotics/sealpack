@@ -1,11 +1,9 @@
 package common
 
 import (
-	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"github.com/ovh/symmecrypt"
@@ -42,31 +40,38 @@ func LoadPublicKey(path string) (*rsa.PublicKey, error) {
 	return key.(*rsa.PublicKey), nil
 }
 
-// loadPrivateKey reads and parses a private key from a file
-func loadPrivateKey() error {
-	keyBytes, err := os.ReadFile(Seal.PrivKeyPath)
+// LoadPrivateKey reads and parses a private key from a file
+func LoadPrivateKey(path string) (*rsa.PrivateKey, error) {
+	keyBytes, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	block, _ := pem.Decode(keyBytes)
 	if block == nil {
-		return errors.New("file does not contain PEM data")
+		return nil, errors.New("file does not contain PEM data")
 	}
 	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	privKey = key.(*rsa.PrivateKey)
-	return err
+	return key.(*rsa.PrivateKey), nil
 }
 
 // CreatePKISigner uses the private key to create a signature.Signer instance
 func CreatePKISigner() (signature.Signer, error) {
-	err := loadPrivateKey()
+	pKey, err := LoadPrivateKey(Seal.PrivKeyPath)
 	if err != nil {
 		return nil, err
 	}
-	return signature.LoadSigner(privKey, crypto.SHA512)
+	return signature.LoadSigner(pKey, GetConfiguredHashAlgorithm(Seal.HashingAlgorithm))
+}
+
+func CreatePKIVerifier() (signature.Verifier, error) {
+	pubKey, err := LoadPublicKey(Unseal.SigningKeyPath)
+	if err != nil {
+		return nil, err
+	}
+	return signature.LoadVerifier(pubKey, GetConfiguredHashAlgorithm(Unseal.HashingAlgorithm))
 }
 
 // Encrypt the contents of an os.File with a random key and retrieve the results as []byte
@@ -88,32 +93,11 @@ func Encrypt(unencrypted []byte) ([]byte, []byte, error) {
 	return encrypted, []byte(keyConfig.Key), nil
 }
 
-// decrypt detaches the encryption key, decrypts it with a private key and use it to decrypt the payload
-func decrypt(encryptedData []byte) ([]byte, error) {
-	firstKeyIndex := len(encryptedData) - KeySizeBit
-	keyBytes, err := rsa.DecryptPKCS1v15(rand.Reader, privKey, encryptedData[firstKeyIndex:])
-	if err != nil {
-		return nil, err
-	}
-	key, err := extractKey(keyBytes)
-	if err != nil {
-		return nil, err
-	}
-	decrypted, err := key.Decrypt(encryptedData[:firstKeyIndex])
-	if err != nil {
-		return nil, err
-	}
-	return decrypted, nil
-}
-
 // extractKey loads a key from JSON without configstore
-func extractKey(keyBytes []byte) (symmecrypt.Key, error) {
-	item := struct {
-		Key string `json:"key"`
-	}{}
-	err := json.Unmarshal(keyBytes, &item)
+func TryUnsealKey(encrypted []byte, key *rsa.PrivateKey) (symmecrypt.Key, error) {
+	keyBytes, err := rsa.DecryptPKCS1v15(rand.Reader, key, encrypted)
 	if err != nil {
 		return nil, err
 	}
-	return symmecrypt.NewKey(xchacha20poly1305.CipherName, item.Key)
+	return symmecrypt.NewKey(xchacha20poly1305.CipherName, string(keyBytes))
 }
