@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"hash"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -59,9 +60,15 @@ func (f *FileSignatures) AddFile(name string, contents []byte) error {
 }
 
 func (f *FileSignatures) Bytes() []byte {
+	keys := make([]string, 0, len(*f))
+	for k := range *f {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	sb := strings.Builder{}
-	for fileName, fileHash := range *f {
-		_, _ = sb.WriteString(fileName + Delimiter + fileHash + "\n")
+	for _, fileName := range keys {
+		_, _ = sb.WriteString(fileName + Delimiter + (*f)[fileName] + "\n")
 	}
 	return []byte(sb.String())
 }

@@ -214,17 +214,14 @@ func unsealCommand() error {
 		default:
 			return fmt.Errorf("unknown type: %s in %s", h.Typeflag, h.Name)
 		}
-		// Test if TOC matches collected signatures TOC amd then verify that the TOC signature matches the binary TOC
-		if bytes.Compare(toc, signatures.Bytes()) != 0 {
-			return fmt.Errorf("tocs not matching")
-		}
-		if err = verifier.VerifySignature(bytes.NewReader(tocSignature), bytes.NewReader(toc)); err != nil {
-			return err
-		}
 	}
-
-	fmt.Println("Done and duster. out of this world!")
-
+	// Test if TOC matches collected signatures TOC amd then verify that the TOC signature matches the binary TOC
+	if bytes.Compare(toc, signatures.Bytes()) != 0 {
+		return fmt.Errorf("tocs not matching")
+	}
+	if err = verifier.VerifySignature(bytes.NewReader(tocSignature), bytes.NewReader(toc)); err != nil {
+		return err
+	}
 	return nil
 }
 
