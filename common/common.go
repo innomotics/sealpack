@@ -23,6 +23,7 @@ type UnsealConfig struct {
 	SigningKeyPath   string
 	OutputPath       string
 	HashingAlgorithm string
+	TargetRegistry   string
 }
 
 const (

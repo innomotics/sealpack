@@ -1,6 +1,9 @@
 package shared
 
-import "path/filepath"
+import (
+	"path/filepath"
+	"strings"
+)
 
 // ImageContent represents one component to be included in the upgrade package.
 // If IsImage is set true, the component will be pulled by Name and Tag from the ECR registry.
@@ -58,9 +61,21 @@ func (i *ContainerImage) String() string {
 	return i.Registry + "/" + i.Name + ":" + i.Tag
 }
 
-const ContainerImagePrefix = ".images"
+const (
+	ContainerImagePrefix = ".images"
+	OCISuffix            = ".oci"
+)
 
 // ToFileName creates a file name to store the image archive in.
 func (i *ContainerImage) ToFileName() string {
-	return filepath.Join(ContainerImagePrefix, i.Registry, i.Name+":"+i.Tag+".oci")
+	return filepath.Join(ContainerImagePrefix, i.Registry, i.Name+":"+i.Tag+OCISuffix)
+}
+
+func ParseContainerImage(registry string, name string) *ContainerImage {
+	imgParts := strings.Split(strings.TrimSuffix(name, OCISuffix), ":")
+	return &ContainerImage{
+		Registry: registry,
+		Name:     imgParts[0],
+		Tag:      imgParts[1],
+	}
 }

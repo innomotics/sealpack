@@ -222,6 +222,13 @@ func unsealCommand() error {
 	if err = verifier.VerifySignature(bytes.NewReader(tocSignature), bytes.NewReader(toc)); err != nil {
 		return err
 	}
+
+	// If everything matches, reimport images if target registry has been provided
+	if common.Unseal.TargetRegistry != "" {
+		if err = common.ImportImages(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
