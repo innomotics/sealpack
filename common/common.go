@@ -10,6 +10,7 @@ import (
 type SealConfig struct {
 	PrivKeyPath          string
 	RecipientPubKeyPaths []string
+	Public               bool
 	Seal                 bool
 	HashingAlgorithm     string
 	Files                []string

@@ -65,10 +65,16 @@ func (e *Envelope) ToBytes() []byte {
 
 func (e *Envelope) String() string {
 	sb := strings.Builder{}
-	sb.WriteString("File is a sealed package.\n")
+	if len(e.ReceiverKeys) < 1 {
+		sb.WriteString("File is a public package.\n")
+	} else {
+		sb.WriteString("File is a sealed package.\n")
+	}
 	sb.WriteString(fmt.Sprintf("\tPayload size (compressed): %d Bytes\n", len(e.PayloadEncrypted)))
 	sb.WriteString(fmt.Sprintf("\tSingatures hashed using %s (%d Bit)\n", e.HashAlgorithm.String(), e.HashAlgorithm.Size()))
-	sb.WriteString(fmt.Sprintf("\tSealed for %d Recievers\n", len(e.ReceiverKeys)))
+	if len(e.ReceiverKeys) > 0 {
+		sb.WriteString(fmt.Sprintf("\tSealed for %d Recievers\n", len(e.ReceiverKeys)))
+	}
 	return sb.String()
 }
 

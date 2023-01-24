@@ -97,24 +97,28 @@ func sealCommand() error {
 	envelope := shared.Envelope{
 		HashAlgorithm: common.GetConfiguredHashAlgorithm(common.Seal.HashingAlgorithm),
 	}
-	var symKey []byte
-	if envelope.PayloadEncrypted, symKey, err = common.Encrypt(archive); err != nil {
-		return err
-	}
-	envelope.ReceiverKeys = make([][]byte, len(common.Seal.RecipientPubKeyPaths))
-	for iKey, recipientPubKeyPath := range common.Seal.RecipientPubKeyPaths {
-		var recPubKey *rsa.PublicKey
-		if recPubKey, err = common.LoadPublicKey(recipientPubKeyPath); err != nil {
+	if common.Seal.Public {
+		envelope.ReceiverKeys = [][]byte{}
+		envelope.PayloadEncrypted = archive
+	} else {
+		var symKey []byte
+		if envelope.PayloadEncrypted, symKey, err = common.Encrypt(archive); err != nil {
 			return err
 		}
-		if envelope.ReceiverKeys[iKey], err = rsa.EncryptPKCS1v15(rand.Reader, recPubKey, symKey); err != nil {
-			return err
-		}
-		if len(envelope.ReceiverKeys[iKey]) != recPubKey.Size() {
-			return fmt.Errorf("key size must be %d bits", common.KeySizeBit)
+		envelope.ReceiverKeys = make([][]byte, len(common.Seal.RecipientPubKeyPaths))
+		for iKey, recipientPubKeyPath := range common.Seal.RecipientPubKeyPaths {
+			var recPubKey *rsa.PublicKey
+			if recPubKey, err = common.LoadPublicKey(recipientPubKeyPath); err != nil {
+				return err
+			}
+			if envelope.ReceiverKeys[iKey], err = rsa.EncryptPKCS1v15(rand.Reader, recPubKey, symKey); err != nil {
+				return err
+			}
+			if len(envelope.ReceiverKeys[iKey]) != recPubKey.Size() {
+				return fmt.Errorf("key size must be %d bits", common.KeySizeBit)
+			}
 		}
 	}
-
 	// 5. Store encrypted file
 	_, _ = fmt.Fprintln(os.Stderr, "[5] Save WriteArchive")
 	return common.WriteFile(envelope.ToBytes())
@@ -147,26 +151,32 @@ func unsealCommand() error {
 	if err != nil {
 		return err
 	}
-	// Try to find a key that can be decrypted with the provided private key
-	pKey, err := common.LoadPrivateKey(common.Unseal.PrivKeyPath)
-	if err != nil {
-		return err
-	}
-	var symKey symmecrypt.Key
-	for _, key := range envelope.ReceiverKeys {
-		symKey, err = common.TryUnsealKey(key, pKey)
-		if err == nil {
-			break
+	var payload []byte
+	if len(envelope.ReceiverKeys) < 1 {
+		// Was not encrypted: public archive
+		payload = envelope.PayloadEncrypted
+	} else {
+		// Try to find a key that can be decrypted with the provided private key
+		pKey, err := common.LoadPrivateKey(common.Unseal.PrivKeyPath)
+		if err != nil {
+			return err
 		}
-		fmt.Println(err)
-	}
-	if symKey == nil {
-		return fmt.Errorf("not sealed for the provided private key")
-	}
-	// Decrypt the payload and decrypt it
-	payload, err := symKey.Decrypt(envelope.PayloadEncrypted)
-	if err != nil {
-		return err
+		var symKey symmecrypt.Key
+		for _, key := range envelope.ReceiverKeys {
+			symKey, err = common.TryUnsealKey(key, pKey)
+			if err == nil {
+				break
+			}
+			fmt.Println(err)
+		}
+		if symKey == nil {
+			return fmt.Errorf("not sealed for the provided private key")
+		}
+		// Decrypt the payload and decrypt it
+		payload, err = symKey.Decrypt(envelope.PayloadEncrypted)
+		if err != nil {
+			return err
+		}
 	}
 	archive, err := shared.OpenArchive(payload)
 	if err != nil {

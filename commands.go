@@ -30,6 +30,10 @@ var (
 			if len(common.Seal.ImageNames) > 0 {
 				parseImages()
 			}
+			// public option cannot be used with receiver keys
+			if common.Seal.Public && len(common.Seal.RecipientPubKeyPaths) > 0 {
+				log.Fatal("Cannot use -public with -recipient-pubkey (illogical error)")
+			}
 			check(sealCommand())
 		},
 	}
@@ -83,7 +87,7 @@ func ParseCommands() error {
 	sealCmd.Flags().StringSliceVarP(&common.Seal.RecipientPubKeyPaths, "recipient-pubkey", "r", make([]string, 0), "Paths of recipients' public keys")
 	sealCmd.Flags().StringVarP(&common.Seal.Output, "output", "o", "", "Filename to store the result in")
 	_ = sealCmd.MarkFlagRequired("privkey")
-	_ = sealCmd.MarkFlagRequired("recipient-pubkey")
+	sealCmd.Flags().BoolVar(&common.Seal.Public, "public", false, "Don't encrypt, contents are signed only and can be retrieved from any receiver")
 	sealCmd.Flags().StringVarP(&contents, "contents", "c", "", "Provide all contents as a central configurations file")
 	sealCmd.Flags().BoolVarP(&common.Seal.Seal, "seal", "s", true, "Whether to seal the archive after packing")
 	sealCmd.Flags().StringSliceVarP(&common.Seal.Files, "file", "f", make([]string, 0), "Path to the files to be added")
@@ -96,7 +100,6 @@ func ParseCommands() error {
 	unsealCmd.Flags().StringVarP(&common.Unseal.PrivKeyPath, "privkey", "p", "", "Private key of the receiver")
 	unsealCmd.Flags().StringVarP(&common.Unseal.SigningKeyPath, "signer-key", "s", "", "Public key of the signing entity")
 	unsealCmd.Flags().StringVarP(&common.Unseal.OutputPath, "output", "o", "output", "Output path to unpack the contents to")
-	_ = sealCmd.MarkFlagRequired("privkey")
 	_ = sealCmd.MarkFlagRequired("signer-key")
 	unsealCmd.Flags().StringVarP(&common.Unseal.HashingAlgorithm, "hashing-algorithm", "a", "SHA3_512", "Name of hashing algorithm to be used")
 	unsealCmd.Flags().StringVarP(&common.Unseal.TargetRegistry, "target-registry", "r", common.LocalRegistry, "URL of the target registry to import container images; 'local' imports them locally")
