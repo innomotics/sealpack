@@ -2,7 +2,7 @@
 
 This project allows the secure bundling of mobile code.
 This means, files and container images can be packed like with any compression tool, but with a focus on the 
-(CIA triad)[https://www.f5.com/labs/learning-center/what-is-the-cia-triad].
+[CIA triad](https://www.f5.com/labs/learning-center/what-is-the-cia-triad).
 In addition, it was designed for flexibility and extensibility, so it can be used in various contexts.
 
 The approach consists of
