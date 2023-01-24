@@ -1,0 +1,27 @@
+variables:
+  https_proxy: ${CODE_PROXY}
+  http_proxy: ${CODE_PROXY}
+  no_proxy: api.siemens.com,cr.siemens.com,code.siemens.com,devops.bt.siemens.com
+  PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/sealpack/${CI_COMMIT_REF_SLUG}"
+
+stages:
+  - build
+  - release
+
+build binary:
+  stage: build
+  image: golang:1.19
+  script:
+    - mkdir release
+    - go mod tidy
+    - go build . -o release/sealpack
+  artifacts:
+    paths:
+      - release
+
+create generic package:
+  stage: release
+  image: curl:latest
+  script:
+    - 'curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file release/sealpack ${PACKAGE_REGISTRY_URL}/sealpack'
+
