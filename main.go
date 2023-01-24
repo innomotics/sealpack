@@ -115,7 +115,7 @@ func sealCommand() error {
 				return err
 			}
 			if len(envelope.ReceiverKeys[iKey]) != recPubKey.Size() {
-				return fmt.Errorf("key size must be %d bits", common.KeySizeBit)
+				return fmt.Errorf("key size must be %d bits", recPubKey.Size())
 			}
 		}
 	}

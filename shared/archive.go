@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// ParseEnvelope tries to extract the information for an Envelope from a byte slice
 func ParseEnvelope(input []byte) (*Envelope, error) {
 	if !bytes.HasPrefix(input, []byte(EnvelopeMagicBytes)) {
 		return nil, fmt.Errorf("not a valid sealpack file")

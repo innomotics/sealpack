@@ -1,11 +1,13 @@
 package common
 
 import (
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"github.com/ovh/symmecrypt"
 	"github.com/ovh/symmecrypt/ciphers/xchacha20poly1305"
 	"github.com/ovh/symmecrypt/keyloader"
@@ -14,14 +16,16 @@ import (
 	"time"
 )
 
-const (
-	KeySizeBit = 512
-)
-
 var (
 	pubKey  *rsa.PublicKey
 	privKey *rsa.PrivateKey
 )
+
+// PrivateKey is defined as any structure implementing crypto.Signer and crypto.Decrypter
+type PrivateKey interface {
+	crypto.Signer
+	crypto.Decrypter
+}
 
 // LoadPublicKey reads and parses a public key from a file
 func LoadPublicKey(path string) (*rsa.PublicKey, error) {
@@ -33,15 +37,24 @@ func LoadPublicKey(path string) (*rsa.PublicKey, error) {
 	if block == nil {
 		return nil, errors.New("file does not contain PEM data")
 	}
-	key, err := x509.ParsePKIXPublicKey(block.Bytes)
+	key, err := parsePublicKey(block.Bytes)
 	if err != nil {
 		return nil, err
 	}
 	return key.(*rsa.PublicKey), nil
 }
 
+// parsePublicKey tries to parse the byte slice as PKCS1 and PKIX key and provides it back
+func parsePublicKey(block []byte) (any, error) {
+	key, err := x509.ParsePKIXPublicKey(block)
+	if err == nil {
+		return key, nil
+	}
+	return x509.ParsePKCS1PublicKey(block)
+}
+
 // LoadPrivateKey reads and parses a private key from a file
-func LoadPrivateKey(path string) (*rsa.PrivateKey, error) {
+func LoadPrivateKey(path string) (PrivateKey, error) {
 	keyBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -50,11 +63,22 @@ func LoadPrivateKey(path string) (*rsa.PrivateKey, error) {
 	if block == nil {
 		return nil, errors.New("file does not contain PEM data")
 	}
-	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-	if err != nil {
-		return nil, err
+	return parsePrivateKey(block.Bytes)
+}
+
+// parsePrivateKey tries to parse the byte slice as PKCS1, PKCS8 and EC key and provides it back
+func parsePrivateKey(block []byte) (PrivateKey, error) {
+	var key any
+	key, err := x509.ParsePKCS1PrivateKey(block)
+	if err == nil {
+		return key.(PrivateKey), nil
 	}
-	return key.(*rsa.PrivateKey), nil
+	key, err = x509.ParsePKCS8PrivateKey(block)
+	if err == nil {
+		return key.(PrivateKey), nil
+	}
+	key, err = x509.ParseECPrivateKey(block)
+	return key.(PrivateKey), err
 }
 
 // CreatePKISigner uses the private key to create a signature.Signer instance
@@ -66,6 +90,7 @@ func CreatePKISigner() (signature.Signer, error) {
 	return signature.LoadSigner(pKey, GetConfiguredHashAlgorithm(Seal.HashingAlgorithm))
 }
 
+// CreatePKIVerifier builds a verifier based on a public key
 func CreatePKIVerifier() (signature.Verifier, error) {
 	pubKey, err := LoadPublicKey(Unseal.SigningKeyPath)
 	if err != nil {
@@ -93,9 +118,13 @@ func Encrypt(unencrypted []byte) ([]byte, []byte, error) {
 	return encrypted, []byte(keyConfig.Key), nil
 }
 
-// extractKey loads a key from JSON without configstore
-func TryUnsealKey(encrypted []byte, key *rsa.PrivateKey) (symmecrypt.Key, error) {
-	keyBytes, err := rsa.DecryptPKCS1v15(rand.Reader, key, encrypted)
+// TryUnsealKey loads a key from JSON without configstore
+func TryUnsealKey(encrypted []byte, key PrivateKey) (symmecrypt.Key, error) {
+	rsaKey, ok := key.(*rsa.PrivateKey)
+	if !ok {
+		return nil, fmt.Errorf("ECDSA Keys cannot be used for decryption")
+	}
+	keyBytes, err := rsa.DecryptPKCS1v15(rand.Reader, rsaKey, encrypted)
 	if err != nil {
 		return nil, err
 	}
