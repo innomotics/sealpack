@@ -35,7 +35,7 @@ The `unseal` action
 ## High level overview
 The prerequisite for a fully featured usage of `sealpack` is every entity having a private-public-key-pair (PPK).
 
-> Private keys must never be shared, best is to (use TPM as PPK storage)[https://blog.hansenpartnership.com/using-your-tpm-as-a-secure-key-store/].
+> Private keys must never be shared, best is to [use TPM as PPK storage](https://blog.hansenpartnership.com/using-your-tpm-as-a-secure-key-store/).
 > If not possible, use files with the least access permissions possible.
 
 A mutual trust must be established by exchanging the public Keys. This means, the sender must have access to all public 
