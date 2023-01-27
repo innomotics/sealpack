@@ -13,8 +13,6 @@ import (
 	"time"
 )
 
-const TestFilePath = "../test"
-
 // /////////////////////
 // Test LoadPublicKey //
 // /////////////////////

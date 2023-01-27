@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+var createKmsSigner = aws.CreateKmsSigner
+
 type SealConfig struct {
 	PrivKeyPath          string
 	RecipientPubKeyPaths []string
@@ -48,7 +50,7 @@ type Signer struct {
 
 func CreateSigner() (signature.Signer, error) {
 	if strings.HasPrefix(Seal.PrivKeyPath, "awskms:///") {
-		return aws.CreateKmsSigner(Seal.PrivKeyPath)
+		return createKmsSigner(Seal.PrivKeyPath)
 	}
 	// TODO: other potential signing modules
 	return CreatePKISigner()
