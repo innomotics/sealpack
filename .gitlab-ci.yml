@@ -5,8 +5,43 @@ variables:
   PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${CI_PROJECT_NAME}/${CI_COMMIT_REF_SLUG}"
 
 stages:
+  - test
   - build
   - release
+
+
+unit testing:
+  stage: test
+  image: golang:1.19
+  script:
+    - pushd test
+    - openssl genrsa -out private1024.pem 1024 && openssl rsa -in private1024.pem -pubout -out public1024.pem
+    - openssl genrsa -out private2048.pem 2048 && openssl rsa -in private2048.pem -pubout -out public2048.pem
+    - openssl genrsa -out private.pem 4096 && openssl rsa -in private.pem -pubout -out public.pem
+    - popd
+    - go mod tidy
+    - go test ./... -coverprofile=coverage.txt -covermode count
+    - go get github.com/boumenot/gocover-cobertura
+    - go run github.com/boumenot/gocover-cobertura < coverage.txt > coverage.xml
+  coverage: '/coverage: \d+.\d+% of statements/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+
+SBOM creation:
+  stage: test
+  image: golang:1.19
+  variables:
+    SBOM_FILE: ${CI_PROJECT_NAME}-sbom.json
+  script:
+    - go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@latest
+    - cyclonedx-gomod app -json=true -licenses=true -output ${SBOM_FILE}
+  artifacts:
+    reports:
+      cyclonedx:
+        - ${SBOM_FILE}
 
 build binary:
   stage: build

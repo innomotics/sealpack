@@ -34,6 +34,7 @@ func main() {
 	check(ParseCommands())
 }
 
+// sealCommand is the combined command for sealing
 func sealCommand() error {
 	var err error
 
@@ -124,6 +125,7 @@ func sealCommand() error {
 	return common.WriteFile(envelope.ToBytes())
 }
 
+// inspectCommand is the central command for inspecting a potentially sealed file
 func inspectCommand() error {
 	raw, err := os.ReadFile(common.SealedFile)
 	if err != nil {
@@ -137,6 +139,7 @@ func inspectCommand() error {
 	return nil
 }
 
+// unsealCommand is the combined command for unsealing
 func unsealCommand() error {
 	verifier, err := common.CreatePKIVerifier()
 	if err != nil {
@@ -222,7 +225,7 @@ func unsealCommand() error {
 				}
 			}
 		default:
-			return fmt.Errorf("unknown type: %s in %s", h.Typeflag, h.Name)
+			return fmt.Errorf("unknown type: %b in %s", h.Typeflag, h.Name)
 		}
 	}
 	// Test if TOC matches collected signatures TOC amd then verify that the TOC signature matches the binary TOC

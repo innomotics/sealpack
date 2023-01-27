@@ -131,13 +131,9 @@ func (arc *WriteArchive) Finalize() ([]byte, error) {
 	var err error
 	_, closeable := arc.compressWriter.(interface{}).(io.Closer)
 	if closeable {
-		if err = arc.compressWriter.(io.Closer).Close(); err != nil {
-			return nil, err
-		}
+		_ = arc.compressWriter.(io.Closer).Close()
 	}
-	if err = arc.tarWriter.Close(); err != nil {
-		return nil, err
-	}
+	_ = arc.tarWriter.Close()
 	return arc.buffer.Bytes(), err
 }
 

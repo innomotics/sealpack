@@ -16,11 +16,6 @@ import (
 	"time"
 )
 
-var (
-	pubKey  *rsa.PublicKey
-	privKey *rsa.PrivateKey
-)
-
 // PrivateKey is defined as any structure implementing crypto.Signer and crypto.Decrypter
 type PrivateKey interface {
 	crypto.Signer
@@ -78,6 +73,9 @@ func parsePrivateKey(block []byte) (PrivateKey, error) {
 		return key.(PrivateKey), nil
 	}
 	key, err = x509.ParseECPrivateKey(block)
+	if err != nil {
+		return nil, err
+	}
 	return key.(PrivateKey), err
 }
 
