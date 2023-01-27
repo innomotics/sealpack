@@ -6,10 +6,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 )
 
-const (
-	SecretName = "dev/aeskey"
-)
-
 // smSession represents the AWS Secrets Manager Session.
 var smSession *secretsmanager.SecretsManager
 
@@ -21,11 +17,12 @@ func verifySmSession() {
 	}
 }
 
-// getEncryptionKey loads the AES encryption key from Secrets Manager.
-// In Secrets Manager it is stored base64-encoded, so it gets decoded and returned as 32-bit binary byte slice.
-func getEncryptionKey() ([]byte, error) {
+// GetEncryptionKey loads an encryption key from Secrets Manager.
+// In Secrets Manager it is stored base64-encoded, so it gets decoded and returned as binary byte slice.
+func GetEncryptionKey(secretName string) ([]byte, error) {
+	verifySmSession()
 	result, err := smSession.GetSecretValue(&secretsmanager.GetSecretValueInput{
-		SecretId: aws.String(SecretName),
+		SecretId: aws.String(secretName),
 	})
 	if err != nil {
 		return nil, err

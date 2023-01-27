@@ -242,6 +242,7 @@ func unsealCommand() error {
 	return nil
 }
 
+// check tests if an error is nil; if not, it logs the error and exits the program
 func check(err error, plus ...string) {
 	if err != nil {
 		log.Fatalln(err, plus)

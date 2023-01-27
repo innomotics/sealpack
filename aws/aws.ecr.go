@@ -23,11 +23,11 @@ func verifyEcrSession() {
 	}
 }
 
-// downloadEcrImage downloads a container image as tar file.
+// DownloadEcrImage downloads a container image as tar file.
 // First, the OCI manifest and subsequently the config json must be obtained from ECS.
 // Then the download URLs for all layers must be individually obtained and the layers must be downloaded.
 // The layers and the config are added to the tar file; a docker manifest is created and also added.
-func downloadEcrImage(content *shared.ContainerImage) ([]byte, error) {
+func DownloadEcrImage(content *shared.ContainerImage) ([]byte, error) {
 	verifyEcrSession()
 	// Download image details, which contains the manifest.
 	imageDetails, err := ecrSession.BatchGetImage(&ecr.BatchGetImageInput{

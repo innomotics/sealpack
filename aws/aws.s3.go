@@ -62,6 +62,7 @@ func S3CreatePresignedDownload(uri string) (string, error) {
 
 // S3UploadArchive uploads the byte slice of the archive to S3.
 func S3UploadArchive(contents []byte, uri string) error {
+	verifyS3Session()
 	s3uri, err := parseS3Uri(uri)
 	if err != nil {
 		return err
