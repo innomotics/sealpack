@@ -96,7 +96,7 @@ func sealCommand() error {
 	}
 	// Now create encryption key and seal them for all recipients
 	envelope := shared.Envelope{
-		HashAlgorithm: common.GetConfiguredHashAlgorithm(common.Seal.HashingAlgorithm),
+		HashAlgorithm: common.GetHashAlgorithm(common.Seal.HashingAlgorithm),
 	}
 	if common.Seal.Public {
 		envelope.ReceiverKeys = [][]byte{}

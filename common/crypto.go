@@ -85,7 +85,7 @@ func CreatePKISigner() (signature.Signer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return signature.LoadSigner(pKey, GetConfiguredHashAlgorithm(Seal.HashingAlgorithm))
+	return signature.LoadSigner(pKey, GetHashAlgorithm(Seal.HashingAlgorithm))
 }
 
 // CreatePKIVerifier builds a verifier based on a public key
@@ -94,7 +94,7 @@ func CreatePKIVerifier() (signature.Verifier, error) {
 	if err != nil {
 		return nil, err
 	}
-	return signature.LoadVerifier(pubKey, GetConfiguredHashAlgorithm(Unseal.HashingAlgorithm))
+	return signature.LoadVerifier(pubKey, GetHashAlgorithm(Unseal.HashingAlgorithm))
 }
 
 // Encrypt the contents of an os.File with a random key and retrieve the results as []byte

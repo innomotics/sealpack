@@ -11,8 +11,10 @@ import (
 // A FileSignatures is represented by its path and the hash of the file
 type FileSignatures map[string]string
 
+// Delimiter delimits the file name from its hash
 const Delimiter = ":"
 
+// availableHashes maps names of available hashes to their crypto.Hash
 var availableHashes = map[string]crypto.Hash{
 	"SHA224":      crypto.SHA224,
 	"SHA256":      crypto.SHA256,
@@ -36,20 +38,24 @@ var (
 	hashAlgo hash.Hash
 )
 
-func GetConfiguredHashAlgorithm(algo string) crypto.Hash {
+// GetHashAlgorithm retrieves a crypto.Hash for a name.
+// if no available name is provided, SHA512 is returned.
+func GetHashAlgorithm(algo string) crypto.Hash {
 	h, ok := availableHashes[algo]
 	if !ok {
-		h = crypto.SHA3_512
+		h = crypto.SHA512
 	}
 	return h
 }
 
+// NewSignatureList creates a new signature list
 func NewSignatureList(algo string) *FileSignatures {
 	s := &FileSignatures{}
-	hashAlgo = GetConfiguredHashAlgorithm(algo).New()
+	hashAlgo = GetHashAlgorithm(algo).New()
 	return s
 }
 
+// AddFile hashes a file and its contents and adds it to the list
 func (f *FileSignatures) AddFile(name string, contents []byte) error {
 	hashAlgo.Reset()
 	if _, err := hashAlgo.Write(contents); err != nil {
@@ -59,6 +65,7 @@ func (f *FileSignatures) AddFile(name string, contents []byte) error {
 	return nil
 }
 
+// Bytes gets the list formatted as []byte
 func (f *FileSignatures) Bytes() []byte {
 	keys := make([]string, 0, len(*f))
 	for k := range *f {
@@ -73,10 +80,12 @@ func (f *FileSignatures) Bytes() []byte {
 	return []byte(sb.String())
 }
 
+// Save the signatures list to a file
 func (f *FileSignatures) Save(name string) error {
 	return os.WriteFile(name, f.Bytes(), 0777)
 }
 
+// Equals compares 2 FileSignatures for equality
 func (f *FileSignatures) Equals(other *FileSignatures) bool {
 	for k, v := range *f {
 		if (*other)[k] != v {
