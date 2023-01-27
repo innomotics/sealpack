@@ -23,7 +23,7 @@ func Test_LoadPublicKey(t *testing.T) {
 	pubKey, err := LoadPublicKey(pubKeyPath)
 	assert.Nil(t, err)
 	assert.NotNil(t, pubKey)
-	assert.Equal(t, 256, pubKey.Size()) // PubKey of 4096 RSA is 512 bytes
+	assert.Equal(t, 512, pubKey.Size()) // PubKey of 4096 RSA is 512 bytes
 }
 func Test_LoadPublicKeyNotFound(t *testing.T) {
 	pubKeyPath := filepath.Join(filepath.Clean(TestFilePath), "public.nonexistent")
@@ -57,7 +57,7 @@ func Test_LoadPrivateKey(t *testing.T) {
 	privKey, err := LoadPrivateKey(privateKeyPath)
 	assert.Nil(t, err)
 	assert.NotNil(t, privKey)
-	assert.Equal(t, 256, privKey.(*rsa.PrivateKey).Size()) // PrivateKey of 4096 RSA is 512 bytes
+	assert.Equal(t, 512, privKey.(*rsa.PrivateKey).Size()) // PrivateKey of 4096 RSA is 512 bytes
 }
 func Test_LoadPrivateKeyNotFound(t *testing.T) {
 	privateKeyPath := filepath.Join(filepath.Clean(TestFilePath), "private.nonexistent")
