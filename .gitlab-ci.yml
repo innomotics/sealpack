@@ -9,7 +9,6 @@ stages:
   - build
   - release
 
-
 unit testing:
   stage: test
   image: golang:1.19
@@ -61,3 +60,10 @@ create generic package:
     - apk add --no-cache curl
     - 'curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file release/${CI_PROJECT_NAME} ${PACKAGE_REGISTRY_URL}/${CI_PROJECT_NAME}'
 
+create docker image:
+  stage: release
+  image: gcr.io/kaniko-project/executor:debug
+  script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor --context $CI_PROJECT_DIR --build-arg HTTP_PROXY=$CODE_PROXY --build-arg HTTPS_PROXY=$CODE_PROXY --destination $CI_PROJECT_NAME:latest
