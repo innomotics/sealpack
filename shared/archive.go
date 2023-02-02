@@ -64,6 +64,7 @@ func (e *Envelope) ToBytes() []byte {
 	return result
 }
 
+// String prints a string representation of an Envelope with basic information
 func (e *Envelope) String() string {
 	sb := strings.Builder{}
 	if len(e.ReceiverKeys) < 1 {
@@ -74,7 +75,7 @@ func (e *Envelope) String() string {
 	sb.WriteString(fmt.Sprintf("\tPayload size (compressed): %d Bytes\n", len(e.PayloadEncrypted)))
 	sb.WriteString(fmt.Sprintf("\tSingatures hashed using %s (%d Bit)\n", e.HashAlgorithm.String(), e.HashAlgorithm.Size()))
 	if len(e.ReceiverKeys) > 0 {
-		sb.WriteString(fmt.Sprintf("\tSealed for %d Recievers\n", len(e.ReceiverKeys)))
+		sb.WriteString(fmt.Sprintf("\tSealed for %d recievers\n", len(e.ReceiverKeys)))
 	}
 	return sb.String()
 }

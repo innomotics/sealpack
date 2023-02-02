@@ -41,7 +41,7 @@ func Test_CreateSignerAWS(t *testing.T) {
 }
 func Test_CreateSignerIncompatibleAlgo(t *testing.T) {
 	Seal = &SealConfig{
-		HashingAlgorithm: "SHA3_512", // Incompatible with RSA
+		HashingAlgorithm: "SHA224", // Incompatible with RSA
 		PrivKeyPath:      filepath.Join(filepath.Clean(TestFilePath), "private.pem"),
 	}
 	sig, err := CreateSigner()

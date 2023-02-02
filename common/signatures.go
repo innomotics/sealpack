@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"hash"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -16,22 +17,24 @@ const Delimiter = ":"
 
 // availableHashes maps names of available hashes to their crypto.Hash
 var availableHashes = map[string]crypto.Hash{
-	"SHA224":      crypto.SHA224,
-	"SHA256":      crypto.SHA256,
-	"SHA384":      crypto.SHA384,
-	"SHA512":      crypto.SHA512,
-	"MD5SHA1":     crypto.MD5SHA1,
-	"RIPEMD160":   crypto.RIPEMD160,
-	"SHA3_224":    crypto.SHA3_224,
-	"SHA3_256":    crypto.SHA3_256,
-	"SHA3_384":    crypto.SHA3_384,
-	"SHA3_512":    crypto.SHA3_512,
-	"SHA512_224":  crypto.SHA512_224,
-	"SHA512_256":  crypto.SHA512_256,
-	"BLAKE2s_256": crypto.BLAKE2s_256,
-	"BLAKE2b_256": crypto.BLAKE2b_256,
-	"BLAKE2b_384": crypto.BLAKE2b_384,
-	"BLAKE2b_512": crypto.BLAKE2b_512,
+	"SHA224": crypto.SHA224,
+	"SHA256": crypto.SHA256,
+	"SHA384": crypto.SHA384,
+	"SHA512": crypto.SHA512,
+	/*
+		"MD5SHA1":     crypto.MD5SHA1,
+		"RIPEMD160":   crypto.RIPEMD160,
+		"SHA3224":    crypto.SHA3_224,
+		"SHA3256":    crypto.SHA3_256,
+		"SHA3384":    crypto.SHA3_384,
+		"SHA3512":    crypto.SHA3_512,
+		"SHA512224":  crypto.SHA512_224,
+		"SHA512256":  crypto.SHA512_256,
+		"BLAKE2s256": crypto.BLAKE2s_256,
+		"BLAKE2b256": crypto.BLAKE2b_256,
+		"BLAKE2b384": crypto.BLAKE2b_384,
+		"BLAKE2b512": crypto.BLAKE2b_512,
+	*/
 }
 
 var (
@@ -41,7 +44,8 @@ var (
 // GetHashAlgorithm retrieves a crypto.Hash for a name.
 // if no available name is provided, SHA512 is returned.
 func GetHashAlgorithm(algo string) crypto.Hash {
-	h, ok := availableHashes[algo]
+	re := regexp.MustCompilePOSIX(`[^a-zA-Z0-9]`)
+	h, ok := availableHashes[re.ReplaceAllString(algo, "")]
 	if !ok {
 		h = crypto.SHA512
 	}

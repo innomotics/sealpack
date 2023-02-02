@@ -62,3 +62,12 @@ func Test_WriteFileS3(t *testing.T) {
 	err := WriteFile(content)
 	assert.Nil(t, err)
 }
+
+func Test_WriteFileUnallowed(t *testing.T) {
+	// Arrange
+	Seal.Output = "/sys/class/some.object"
+	content := []byte("Hold your breath and count to 10.")
+	// Act
+	err := WriteFile(content)
+	assert.ErrorContains(t, err, "permission denied")
+}
