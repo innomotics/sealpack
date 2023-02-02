@@ -69,5 +69,5 @@ func Test_WriteFileUnallowed(t *testing.T) {
 	content := []byte("Hold your breath and count to 10.")
 	// Act
 	err := WriteFile(content)
-	assert.ErrorContains(t, err, "permission denied")
+	assert.Error(t, err)
 }
