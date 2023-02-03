@@ -22,8 +22,8 @@ var availableHashes = map[string]crypto.Hash{
 	"SHA384": crypto.SHA384,
 	"SHA512": crypto.SHA512,
 	/*
-		"MD5SHA1":     crypto.MD5SHA1,
-		"RIPEMD160":   crypto.RIPEMD160,
+		"MD5SHA1":    crypto.MD5SHA1,
+		"RIPEMD160":  crypto.RIPEMD160,
 		"SHA3224":    crypto.SHA3_224,
 		"SHA3256":    crypto.SHA3_256,
 		"SHA3384":    crypto.SHA3_384,
