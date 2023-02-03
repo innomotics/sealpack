@@ -2,6 +2,7 @@ FROM golang:1.19-alpine as builder
 WORKDIR /app
 ENV GOPROXY=direct
 ADD . .
+RUN apk add --no-cache git
 RUN go mod tidy && CGO_ENABLED=0 go build .
 
 FROM alpine:3.17
