@@ -1,5 +1,6 @@
 FROM golang:1.19-alpine as builder
 WORKDIR /app
+ENV GOPROXY=direct
 ADD . .
 RUN go mod tidy && CGO_ENABLED=0 go build .
 
