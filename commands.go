@@ -60,20 +60,74 @@ var (
 		},
 	}
 
+	/*
+		testCmd = &cobra.Command{
+			Use:   "test",
+			Short: "Test something",
+			Run: func(cmd *cobra.Command, args []string) {
+				check(TestHashSequence())
+			},
+		}
+	*/
+
 	contents string
 )
 
-func IsSealCmd() bool {
-	return sealCmd.CalledAs() == "seal"
-}
+/*
+func TestHashSequence() error {
+	timeStart := time.Now()
+	tcti, err := linux.OpenDevice("/dev/tpm0")
+	if err != nil {
+		return err
+	}
+	tpm := tpm2.NewTPMContext(tcti)
+	defer tpm.Close()
+	alg := tpm2.HashAlgorithmSHA256
 
-func IsInspectCommand() bool {
-	return inspectCmd.CalledAs() == "inspect"
-}
+	seq, err := tpm.HashSequenceStart(nil, alg)
+	if err != nil {
+		return err
+	}
 
-func IsUnsealCmd() bool {
-	return unsealCmd.CalledAs() == "unseal"
+	//h := alg.NewHash()
+	maxBlockSize := tpm.GetInputBuffer()
+	f, err := os.Open("/home/z003t8rs/Downloads/iqem-feat-swapfile-7cc17c3-airgap.ipc")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	reader := bufio.NewReader(f)
+	part := make([]byte, maxBlockSize)
+	var count int
+	var result tpm2.Digest
+	for {
+		if count, err = reader.Read(part); err != nil {
+			break
+		}
+
+		_, noFurtherBytes := reader.Peek(1)
+		if noFurtherBytes != nil {
+			var validation *tpm2.TkHashcheck
+			result, validation, err = tpm.SequenceComplete(seq, part[:count], tpm2.HandleOwner, nil)
+			if err != nil {
+				return err
+			}
+			if validation != nil {
+				return fmt.Errorf("error on complete hash: %v", validation)
+			}
+		} else {
+			// Still data available
+			if err := tpm.SequenceUpdate(seq, part[:count], nil); err != nil {
+				return err
+			}
+		}
+	}
+	fmt.Println(result)
+	fmt.Println(time.Now().Sub(timeStart))
+	return nil
 }
+*/
 
 // ParseCommands is configuring all cobra commands and execute them
 func ParseCommands() error {
@@ -103,6 +157,8 @@ func ParseCommands() error {
 	_ = sealCmd.MarkFlagRequired("signer-key")
 	unsealCmd.Flags().StringVarP(&common.Unseal.HashingAlgorithm, "hashing-algorithm", "a", "SHA512", "Name of hashing algorithm to be used")
 	unsealCmd.Flags().StringVarP(&common.Unseal.TargetRegistry, "target-registry", "r", common.LocalRegistry, "URL of the target registry to import container images; 'local' imports them locally")
+
+	// rootCmd.AddCommand(testCmd)
 
 	return rootCmd.Execute()
 }

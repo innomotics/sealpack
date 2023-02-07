@@ -230,10 +230,11 @@ func unsealCommand() error {
 	}
 	// Test if TOC matches collected signatures TOC amd then verify that the TOC signature matches the binary TOC
 	if bytes.Compare(toc, signatures.Bytes()) != 0 {
-		_ = os.WriteFile("iqem_sig.txt", signatures.Bytes(), 0777)
 		return fmt.Errorf("tocs not matching")
 	}
 	if err = verifier.VerifySignature(bytes.NewReader(tocSignature), bytes.NewReader(toc)); err != nil {
+		os.WriteFile("toc", toc, 0777)
+		os.WriteFile("toc.sig", tocSignature, 0777)
 		return err
 	}
 

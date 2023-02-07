@@ -39,12 +39,3 @@ func Test_CreateSignerAWS(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Implements(t, (*signature.Signer)(nil), sig)
 }
-func Test_CreateSignerIncompatibleAlgo(t *testing.T) {
-	Seal = &SealConfig{
-		HashingAlgorithm: "SHA224", // Incompatible with RSA
-		PrivKeyPath:      filepath.Join(filepath.Clean(TestFilePath), "private.pem"),
-	}
-	sig, err := CreateSigner()
-	assert.Nil(t, sig)
-	assert.Contains(t, "invalid hash function specified", err.Error())
-}

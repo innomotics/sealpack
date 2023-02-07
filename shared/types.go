@@ -73,6 +73,9 @@ func (i *ContainerImage) ToFileName() string {
 
 func ParseContainerImage(registry string, name string) *ContainerImage {
 	imgParts := strings.Split(strings.TrimSuffix(name, OCISuffix), ":")
+	if len(imgParts) < 2 {
+		imgParts = append(imgParts, "latest")
+	}
 	return &ContainerImage{
 		Registry: registry,
 		Name:     imgParts[0],

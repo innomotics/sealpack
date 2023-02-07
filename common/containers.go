@@ -40,19 +40,19 @@ func SaveImage(img *shared.ContainerImage) (result []byte, err error) {
 // ImportImages loads all images from the default folder and imports them.
 // After importing, the images are being deleted.
 func ImportImages() error {
-	containerPath := filepath.Join(Unseal.OutputPath, shared.ContainerImagePrefix)
-	origRegs, err := os.ReadDir(containerPath)
+	containerPath := filepath.Join(Unseal.OutputPath, shared.ContainerImagePrefix, "**", "*.oci")
+	origRegs, err := filepath.Glob(containerPath)
 	if err != nil {
 		return err
 	}
 	for _, o := range origRegs {
-		images, err := os.ReadDir(filepath.Join(containerPath, o.Name()))
+		images, err := os.ReadDir(filepath.Join(containerPath, o))
 		if err != nil {
 			return err
 		}
 		for _, image := range images {
-			imgFileName := filepath.Join(containerPath, o.Name(), image.Name())
-			if err = ImportImage(imgFileName, shared.ParseContainerImage(o.Name(), image.Name())); err != nil {
+			imgFileName := filepath.Join(containerPath, o, image.Name())
+			if err = ImportImage(imgFileName, shared.ParseContainerImage(o, image.Name())); err != nil {
 				return err
 			}
 			if err = os.Remove(imgFileName); err != nil {
