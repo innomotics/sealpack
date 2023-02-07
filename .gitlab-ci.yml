@@ -62,6 +62,9 @@ create generic package:
 
 create docker image:
   stage: release
+  variables:
+    https_proxy: ""
+    http_proxy: ""
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
