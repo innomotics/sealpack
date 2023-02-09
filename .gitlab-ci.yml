@@ -62,13 +62,14 @@ create generic package:
 
 create docker image:
   stage: release
-  variables:
-    https_proxy: ""
-    http_proxy: ""
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
   script:
     - mkdir -p /kaniko/.docker
     - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile "${CI_PROJECT_DIR}/Dockerfile" --destination ${CI_REGISTRY_IMAGE}:latest
+    - /kaniko/executor --context $CI_PROJECT_DIR 
+      --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
+      --destination ${CI_REGISTRY_IMAGE}:latest
+      --build-arg http_proxy=${CODE_PROXY}
+      --build-arg https_proxy=${CODE_PROXY}
