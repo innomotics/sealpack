@@ -29,7 +29,6 @@ var (
 
 // main is the central entrypoint for sealpack.
 func main() {
-
 	// Parse CLI params and config
 	check(ParseCommands())
 }
@@ -127,7 +126,7 @@ func sealCommand() error {
 
 // inspectCommand is the central command for inspecting a potentially sealed file
 func inspectCommand() error {
-	raw, err := os.ReadFile(common.SealedFile)
+	raw, err := os.Open(common.SealedFile)
 	if err != nil {
 		return err
 	}
@@ -145,7 +144,7 @@ func unsealCommand() error {
 	if err != nil {
 		return err
 	}
-	raw, err := os.ReadFile(common.SealedFile)
+	raw, err := os.Open(common.SealedFile)
 	if err != nil {
 		return err
 	}
@@ -154,10 +153,10 @@ func unsealCommand() error {
 	if err != nil {
 		return err
 	}
-	var payload []byte
+	var payload io.Reader
 	if len(envelope.ReceiverKeys) < 1 {
 		// Was not encrypted: public archive
-		payload = envelope.PayloadEncrypted
+		payload = envelope.PayloadReader
 	} else {
 		// Try to find a key that can be decrypted with the provided private key
 		pKey, err := common.LoadPrivateKey(common.Unseal.PrivKeyPath)
@@ -176,18 +175,18 @@ func unsealCommand() error {
 			return fmt.Errorf("not sealed for the provided private key")
 		}
 		// Decrypt the payload and decrypt it
-		payload, err = symKey.Decrypt(envelope.PayloadEncrypted)
+		payload, err = symmecrypt.NewReader(envelope.PayloadReader, symKey)
 		if err != nil {
 			return err
 		}
 	}
-	archive, err := shared.OpenArchive(payload)
+	archive, err := shared.OpenArchiveReader(payload)
 	if err != nil {
 		return err
 	}
 	var h *tar.Header
 	signatures := common.NewSignatureList(common.Unseal.HashingAlgorithm)
-	var toc, tocSignature []byte
+	var toc, tocSignature *bytes.Buffer
 	for {
 		h, err = archive.TarReader.Next()
 		if err == io.EOF {
@@ -206,22 +205,31 @@ func unsealCommand() error {
 			if err = os.MkdirAll(filepath.Dir(fullFile), 0755); err != nil {
 				return fmt.Errorf("creating archive for %s failed: %s", fullFile, err.Error())
 			}
-			outFile := new(bytes.Buffer)
-			if _, err = io.Copy(outFile, archive.TarReader); err != nil {
-				log.Fatalf("read contents failed: %s", err.Error())
-			}
 			if !strings.HasPrefix(h.Name, TocFileName) {
-				if err = signatures.AddFile(h.Name, outFile.Bytes()); err != nil {
+				if err = signatures.AddFileFromReader(h.Name, archive.TarReader); err != nil {
 					return err
 				}
-				if err = os.WriteFile(fullFile, outFile.Bytes(), 0755); err != nil {
+				f, err := os.Create(fullFile)
+				if err != nil {
+					return err
+				}
+				if _, err = io.Copy(f, archive.TarReader); err != nil {
+					return err
+				}
+				if err = f.Close(); err != nil {
 					return err
 				}
 			} else {
 				if h.Name == TocFileName {
-					toc = outFile.Bytes()
+					toc = new(bytes.Buffer)
+					if _, err = io.Copy(toc, archive.TarReader); err != nil {
+						return err
+					}
 				} else {
-					tocSignature = outFile.Bytes()
+					tocSignature = new(bytes.Buffer)
+					if _, err = io.Copy(tocSignature, archive.TarReader); err != nil {
+						return err
+					}
 				}
 			}
 		default:
@@ -229,12 +237,12 @@ func unsealCommand() error {
 		}
 	}
 	// Test if TOC matches collected signatures TOC amd then verify that the TOC signature matches the binary TOC
-	if bytes.Compare(toc, signatures.Bytes()) != 0 {
+	if bytes.Compare(toc.Bytes(), signatures.Bytes()) != 0 {
 		return fmt.Errorf("tocs not matching")
 	}
-	if err = verifier.VerifySignature(bytes.NewReader(tocSignature), bytes.NewReader(toc)); err != nil {
-		os.WriteFile("toc", toc, 0777)
-		os.WriteFile("toc.sig", tocSignature, 0777)
+	if err = verifier.VerifySignature(tocSignature, toc); err != nil {
+		os.WriteFile("toc", toc.Bytes(), 0777)
+		os.WriteFile("toc.sig", tocSignature.Bytes(), 0777)
 		return err
 	}
 

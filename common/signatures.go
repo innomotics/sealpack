@@ -3,6 +3,7 @@ package common
 import (
 	"crypto"
 	"hash"
+	"io"
 	"os"
 	"regexp"
 	"sort"
@@ -63,6 +64,16 @@ func NewSignatureList(algo string) *FileSignatures {
 func (f *FileSignatures) AddFile(name string, contents []byte) error {
 	hashAlgo.Reset()
 	if _, err := hashAlgo.Write(contents); err != nil {
+		return err
+	}
+	(*f)[name] = string(hashAlgo.Sum(nil))
+	return nil
+}
+
+// AddFileFromReader hashes a file and its contents and adds it to the list
+func (f *FileSignatures) AddFileFromReader(name string, contents io.Reader) (err error) {
+	hashAlgo.Reset()
+	if _, err = io.Copy(hashAlgo, contents); err != nil {
 		return err
 	}
 	(*f)[name] = string(hashAlgo.Sum(nil))
