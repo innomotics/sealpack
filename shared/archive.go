@@ -14,7 +14,7 @@ import (
 )
 
 // ParseEnvelope tries to extract the information for an Envelope from a byte slice
-func ParseEnvelope(input io.ReadSeekCloser) (*Envelope, error) {
+func ParseEnvelope(input io.ReadSeeker) (*Envelope, error) {
 	rd := bufio.NewReader(input)
 	sig, err := rd.Peek(len(EnvelopeMagicBytes))
 	if err != nil {
@@ -38,7 +38,7 @@ func ParseEnvelope(input io.ReadSeekCloser) (*Envelope, error) {
 		return nil, err
 	}
 	envel.PayloadLen = int64(binary.LittleEndian.Uint64(payload))
-	envel.PayloadReader = io.ReadSeeker(input)
+	envel.PayloadReader = input
 	if _, err = rd.Discard(int(envel.PayloadLen)); err != nil {
 		return nil, err
 	}
@@ -94,6 +94,9 @@ func (e *Envelope) String() string {
 		sb.WriteString("File is a public package.\n")
 	} else {
 		sb.WriteString("File is a sealed package.\n")
+	}
+	if len(e.PayloadEncrypted) > 0 && e.PayloadLen == 0 {
+		e.PayloadLen = int64(len(e.PayloadEncrypted))
 	}
 	sb.WriteString(fmt.Sprintf("\tPayload size (compressed): %d Bytes\n", e.PayloadLen))
 	sb.WriteString(fmt.Sprintf("\tSingatures hashed using %s (%d Bit)\n", e.HashAlgorithm.String(), e.HashAlgorithm.Size()))

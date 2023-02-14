@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"github.com/stretchr/testify/assert"
 	"io"
+	"os"
 	"strings"
 	"testing"
 )
@@ -85,14 +86,22 @@ func Test_Envelope(t *testing.T) {
 	assert.Equal(t, append([]byte(EnvelopeMagicBytes), payloadLen...), bts[:13])
 	assert.Equal(t, []byte("fuyoooh!"), bts[len(bts)-8:])
 
-	// ParesEnvelope
-	env, err := ParseEnvelope(bts)
+	f, err := os.CreateTemp("", "")
+	defer assert.NoError(t, err)
+	_, err = f.Write(bts)
 	assert.NoError(t, err)
-	assert.EqualValues(t, envelope, env)
+	_, err = f.Seek(0, 0)
+	assert.NoError(t, err)
+
+	// ParesEnvelope
+	env, err := ParseEnvelope(f)
+	assert.NoError(t, err)
+	assert.EqualValues(t, envelope.HashAlgorithm, env.HashAlgorithm)
+	assert.EqualValues(t, envelope.ReceiverKeys, env.ReceiverKeys)
 }
 
 func Test_EnvelopeInvalid(t *testing.T) {
-	envelope, err := ParseEnvelope([]byte("Pink fluffy unicorns dancing on rainbows."))
+	envelope, err := ParseEnvelope(bytes.NewReader([]byte("Pink fluffy unicorns dancing on rainbows.")))
 	assert.ErrorContains(t, err, "not a valid sealpack file")
 	assert.Nil(t, envelope)
 }
