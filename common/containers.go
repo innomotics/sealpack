@@ -18,12 +18,11 @@ const (
 
 // SaveImage with podman's Image registry.
 // Functionality implemented according to "podman image save"
-func SaveImage(img *shared.ContainerImage) (result []byte, err error) {
+func SaveImage(img *shared.ContainerImage) (result *os.File, err error) {
 	tmpdir := filepath.Join(os.TempDir(), "crane.dl", img.ToFileName())
 	if err = os.MkdirAll(filepath.Dir(tmpdir), 0777); err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(tmpdir)
 	image, err := crane.Pull(img.String())
 	if err != nil {
 		return nil, err
@@ -31,10 +30,14 @@ func SaveImage(img *shared.ContainerImage) (result []byte, err error) {
 	if err = crane.Save(image, img.String(), tmpdir); err != nil {
 		return nil, err
 	}
-	if result, err = os.ReadFile(tmpdir); err != nil {
+	if result, err = os.Open(tmpdir); err != nil {
 		return nil, err
 	}
 	return result, err
+}
+
+func CleanupImages() error {
+	return os.RemoveAll(filepath.Join(os.TempDir(), "crane.dl"))
 }
 
 // ImportImages loads all images from the default folder and imports them.

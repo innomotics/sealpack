@@ -9,6 +9,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log"
+	"os"
 	"strings"
 	"time"
 )
@@ -60,31 +62,64 @@ func ParseEnvelope(input io.ReadSeeker) (*Envelope, error) {
 
 // Envelope is the package with headers and so on
 type Envelope struct {
-	PayloadLen       int64
-	PayloadReader    io.ReadSeeker
-	PayloadEncrypted []byte
-	HashAlgorithm    crypto.Hash
-	ReceiverKeys     [][]byte
+	PayloadLen    int64
+	PayloadReader io.ReadSeeker
+	PayloadWriter *os.File
+	HashAlgorithm crypto.Hash
+	ReceiverKeys  [][]byte
 }
 
-// ToBytes provides an Envelope as Bytes
+// ToBytes provides an Envelope as Bytes.
+// Caution: using this method may massively increase memory usage!
 func (e *Envelope) ToBytes() []byte {
+	// Add basic header information
 	result := append(
 		[]byte(EnvelopeMagicBytes),
 		byte(e.HashAlgorithm),
 	)
 	// Payload Length
 	payloadLen := make([]byte, 8)
-	binary.LittleEndian.PutUint64(payloadLen, uint64(len(e.PayloadEncrypted)))
+	binary.LittleEndian.PutUint64(payloadLen, uint64(e.PayloadLen))
 	result = append(result, payloadLen...)
 	// Then the Payload
-	result = append(result, e.PayloadEncrypted...)
+	buf, _ := os.ReadFile(e.PayloadWriter.Name())
+	result = append(result, buf...)
 	// Finally, the receivers' keys prefixed with their digest sizes in bytes
 	for _, key := range e.ReceiverKeys {
 		result = append(result, uint8(len(key)/8))
 		result = append(result, key...)
 	}
 	return result
+}
+
+// WriteHeader writes the envelope headers to an io.Writer.
+func (e *Envelope) WriteHeader(w io.Writer) error {
+	if _, err := w.Write([]byte(EnvelopeMagicBytes)); err != nil {
+		return err
+	}
+	if _, err := w.Write([]byte{byte(e.HashAlgorithm)}); err != nil {
+		return err
+	}
+	payloadLen := make([]byte, 8)
+	binary.LittleEndian.PutUint64(payloadLen, uint64(e.PayloadLen))
+	if _, err := w.Write(payloadLen); err != nil {
+		return err
+	}
+	return nil
+}
+
+// WriteKeys writes encrypted keys to an io.Writer.
+func (e *Envelope) WriteKeys(w io.Writer) error {
+	// Finally, the receivers' keys prefixed with their digest sizes in bytes
+	for _, key := range e.ReceiverKeys {
+		if _, err := w.Write([]byte{uint8(len(key) / 8)}); err != nil {
+			return err
+		}
+		if _, err := w.Write(key); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // String prints a string representation of an Envelope with basic information
@@ -95,9 +130,6 @@ func (e *Envelope) String() string {
 	} else {
 		sb.WriteString("File is a sealed package.\n")
 	}
-	if len(e.PayloadEncrypted) > 0 && e.PayloadLen == 0 {
-		e.PayloadLen = int64(len(e.PayloadEncrypted))
-	}
 	sb.WriteString(fmt.Sprintf("\tPayload size (compressed): %d Bytes\n", e.PayloadLen))
 	sb.WriteString(fmt.Sprintf("\tSingatures hashed using %s (%d Bit)\n", e.HashAlgorithm.String(), e.HashAlgorithm.Size()))
 	if len(e.ReceiverKeys) > 0 {
@@ -106,14 +138,37 @@ func (e *Envelope) String() string {
 	return sb.String()
 }
 
+// WriteOutput creates an encrypted output file from encrypted payload
+func (e *Envelope) WriteOutput(f *os.File, arc *WriteArchive) error {
+	if err := e.WriteHeader(f); err != nil {
+		return err
+	}
+	payload, err := os.Open(arc.outFile.Name())
+	if err != nil {
+		return err
+	}
+	if _, err = io.Copy(f, payload); err != nil {
+		return err
+	}
+	if err = payload.Close(); err != nil {
+		return err
+	}
+	if err = e.WriteKeys(f); err != nil {
+		return err
+	}
+	return f.Close()
+}
+
 const (
 	EnvelopeMagicBytes = "\xDBIPC" // ASCII sum of "ECS" = 333(octal) or DB(hex)
 )
 
 type WriteArchive struct {
+	encryptWriter  io.WriteCloser
 	compressWriter io.Writer
 	tarWriter      *tar.Writer
-	buffer         *bytes.Buffer
+	outFile        *os.File
+	EncryptionKey  string
 }
 
 type ReadArchive struct {
@@ -126,14 +181,21 @@ type ReadArchive struct {
  * TODO: Make compressWriter compression algorithm flexible
  */
 
-// CreateArchive opens a stream of writers (tar to gzip to buffer).
-// Bytes added to the stream will be added to the tar.gz archive.
-// It can be retrieved through the buffer as byte slice.
-func CreateArchive() *WriteArchive {
-	arc := &WriteArchive{
-		buffer: new(bytes.Buffer),
+// CreateArchiveWriter opens a stream of writers (tar to gzip to buffer) and funnel to a csutom writer.
+func CreateArchiveWriter(public bool) *WriteArchive {
+	f, err := os.CreateTemp("", "packed_contents")
+	if err != nil {
+		log.Fatal("could not create temp file")
 	}
-	arc.compressWriter = gzip.NewWriter(arc.buffer)
+	arc := &WriteArchive{
+		outFile: f,
+	}
+	if !public {
+		arc.EncryptionKey, arc.encryptWriter = EncryptWriter(arc.outFile)
+		arc.compressWriter = gzip.NewWriter(arc.encryptWriter)
+	} else {
+		arc.compressWriter = gzip.NewWriter(arc.outFile)
+	}
 	arc.tarWriter = tar.NewWriter(arc.compressWriter)
 	return arc
 }
@@ -166,25 +228,70 @@ func OpenArchiveReader(r io.Reader) (arc *ReadArchive, err error) {
 
 // Finalize closes the tar and gzip writers and retrieves the archive.
 // In addition
-func (arc *WriteArchive) Finalize() ([]byte, error) {
+func (arc *WriteArchive) Finalize() (int64, error) {
 	// Finish archive packaging and get contents
 	var err error
+	if arc.encryptWriter != nil {
+		if err = arc.encryptWriter.Close(); err != nil {
+			return 0, err
+		}
+	}
 	_, closeable := arc.compressWriter.(interface{}).(io.Closer)
 	if closeable {
-		_ = arc.compressWriter.(io.Closer).Close()
+		if err = arc.compressWriter.(io.Closer).Close(); err != nil {
+			return 0, err
+		}
 	}
-	_ = arc.tarWriter.Close()
-	return arc.buffer.Bytes(), err
+	if err = arc.tarWriter.Close(); err != nil {
+		return 0, err
+	}
+	// Collect size
+	stat, err := os.Stat(arc.outFile.Name())
+	if err != nil {
+		return 0, err
+	}
+	return stat.Size(), nil
+}
+
+func (arc *WriteArchive) Cleanup() error {
+	// Close if not already done
+	_ = arc.outFile.Close()
+	return os.Remove(arc.outFile.Name())
+}
+
+// WriteToArchive adds a new file identified by its name to the tar.gz archive.
+// The contents are added as reader resource.
+func (arc *WriteArchive) WriteToArchive(fileName string, contents *os.File) error {
+	info, err := contents.Stat()
+	if err != nil {
+		return err
+	}
+	if err = arc.tarWriter.WriteHeader(&tar.Header{
+		Name:    fileName,
+		Size:    info.Size(),
+		Mode:    0755,
+		ModTime: time.Now(),
+	}); err != nil {
+		return err
+	}
+	if _, err = contents.Seek(0, 0); err != nil {
+
+	}
+	_, err = io.CopyN(arc.tarWriter, contents, info.Size())
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // AddToArchive adds a new file identified by its name to the tar.gz archive.
 // The contents are added as byte slices.
 func (arc *WriteArchive) AddToArchive(imgName string, contents []byte) error {
-	return WriteToTar(arc.tarWriter, &imgName, contents)
+	return BytesToTar(arc.tarWriter, &imgName, contents)
 }
 
-// WriteToTar adds a file to a writer using a filename and a byte slice with contents to be written.
-func WriteToTar(w *tar.Writer, filename *string, contents []byte) error {
+// BytesToTar adds a file to a writer using a filename and a byte slice with contents to be written.
+func BytesToTar(w *tar.Writer, filename *string, contents []byte) error {
 	var err error
 	if err = w.WriteHeader(&tar.Header{
 		Name:    *filename,

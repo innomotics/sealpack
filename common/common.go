@@ -53,5 +53,5 @@ func CreateSigner() (signature.Signer, error) {
 		return createKmsSigner(Seal.PrivKeyPath)
 	}
 	// TODO: other potential signing modules
-	return CreatePKISigner()
+	return shared.CreatePKISigner(Seal.PrivKeyPath)
 }

@@ -1,10 +1,10 @@
 package aws
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"io"
 	"io/ioutil"
 	"strings"
 	"time"
@@ -61,7 +61,7 @@ func S3CreatePresignedDownload(uri string) (string, error) {
 }
 
 // S3UploadArchive uploads the byte slice of the archive to S3.
-func S3UploadArchive(contents []byte, uri string) error {
+func S3UploadArchive(reader io.ReadSeeker, uri string) error {
 	verifyS3Session()
 	s3uri, err := parseS3Uri(uri)
 	if err != nil {
@@ -70,7 +70,7 @@ func S3UploadArchive(contents []byte, uri string) error {
 	_, err = s3Session.PutObject(&s3.PutObjectInput{
 		Bucket: s3uri.Bucket,
 		Key:    s3uri.Key,
-		Body:   bytes.NewReader(contents),
+		Body:   reader,
 	})
 	if err != nil {
 		return err

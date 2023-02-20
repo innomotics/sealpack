@@ -15,7 +15,7 @@ func Test_WriteFile(t *testing.T) {
 	content := []byte("Hold your breath and count to 10.")
 
 	// Act
-	err := WriteFile(content)
+	err := WriteFileBytes(content)
 	assert.Nil(t, err)
 
 	// Assert
@@ -37,7 +37,7 @@ func Test_WriteFileStdout(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Act
-	err = WriteFile(content)
+	err = WriteFileBytes(content)
 	assert.Nil(t, err)
 	_, err = stdout.Seek(0, 0)
 	assert.Nil(t, err)
@@ -59,7 +59,7 @@ func Test_WriteFileS3(t *testing.T) {
 	}
 
 	// Act
-	err := WriteFile(content)
+	err := WriteFileBytes(content)
 	assert.Nil(t, err)
 }
 
@@ -68,6 +68,6 @@ func Test_WriteFileUnallowed(t *testing.T) {
 	Seal.Output = "/sys/class/some.object"
 	content := []byte("Hold your breath and count to 10.")
 	// Act
-	err := WriteFile(content)
+	err := WriteFileBytes(content)
 	assert.Error(t, err)
 }
