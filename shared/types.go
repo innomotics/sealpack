@@ -2,7 +2,6 @@ package shared
 
 import (
 	"path/filepath"
-	"strings"
 )
 
 // ImageContent represents one component to be included in the upgrade package.
@@ -69,16 +68,4 @@ const (
 // ToFileName creates a file name to store the image archive in.
 func (i *ContainerImage) ToFileName() string {
 	return filepath.Join(ContainerImagePrefix, i.Registry, i.Name+":"+i.Tag+OCISuffix)
-}
-
-func ParseContainerImage(registry string, name string) *ContainerImage {
-	imgParts := strings.Split(strings.TrimSuffix(name, OCISuffix), ":")
-	if len(imgParts) < 2 {
-		imgParts = append(imgParts, "latest")
-	}
-	return &ContainerImage{
-		Registry: registry,
-		Name:     imgParts[0],
-		Tag:      imgParts[1],
-	}
 }

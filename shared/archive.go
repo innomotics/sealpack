@@ -50,11 +50,11 @@ func ParseEnvelope(input io.ReadSeeker) (*Envelope, error) {
 		if err != nil {
 			break
 		}
-		receiverKey := make([]byte, int(k)*8)
-		if _, err = rd.Read(receiverKey); err != nil {
+		receiverKey := bytes.NewBuffer([]byte{})
+		if _, err = io.CopyN(receiverKey, rd, int64(k)*8); err != nil {
 			return nil, err
 		}
-		envel.ReceiverKeys = append(envel.ReceiverKeys, receiverKey)
+		envel.ReceiverKeys = append(envel.ReceiverKeys, receiverKey.Bytes())
 	}
 	envel.PayloadReader.Seek(13, 0)
 	return envel, nil
@@ -156,6 +156,9 @@ func (e *Envelope) WriteOutput(f *os.File, arc *WriteArchive) error {
 	if err = e.WriteKeys(f); err != nil {
 		return err
 	}
+	if err = f.Sync(); err != nil {
+		return err
+	}
 	return f.Close()
 }
 
@@ -231,11 +234,6 @@ func OpenArchiveReader(r io.Reader) (arc *ReadArchive, err error) {
 func (arc *WriteArchive) Finalize() (int64, error) {
 	// Finish archive packaging and get contents
 	var err error
-	if arc.encryptWriter != nil {
-		if err = arc.encryptWriter.Close(); err != nil {
-			return 0, err
-		}
-	}
 	_, closeable := arc.compressWriter.(interface{}).(io.Closer)
 	if closeable {
 		if err = arc.compressWriter.(io.Closer).Close(); err != nil {
@@ -244,6 +242,11 @@ func (arc *WriteArchive) Finalize() (int64, error) {
 	}
 	if err = arc.tarWriter.Close(); err != nil {
 		return 0, err
+	}
+	if arc.encryptWriter != nil {
+		if err = arc.encryptWriter.Close(); err != nil {
+			return 0, err
+		}
 	}
 	// Collect size
 	stat, err := os.Stat(arc.outFile.Name())
@@ -275,13 +278,13 @@ func (arc *WriteArchive) WriteToArchive(fileName string, contents *os.File) erro
 		return err
 	}
 	if _, err = contents.Seek(0, 0); err != nil {
-
+		return err
 	}
 	_, err = io.CopyN(arc.tarWriter, contents, info.Size())
 	if err != nil {
 		return err
 	}
-	return nil
+	return arc.tarWriter.Flush()
 }
 
 // AddToArchive adds a new file identified by its name to the tar.gz archive.

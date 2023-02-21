@@ -2,13 +2,15 @@ package common
 
 import (
 	"context"
-	"fmt"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/google/go-containerregistry/pkg/crane"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sealpack/shared"
+	"strings"
 )
 
 const (
@@ -40,35 +42,47 @@ func CleanupImages() error {
 	return os.RemoveAll(filepath.Join(os.TempDir(), "crane.dl"))
 }
 
+func ParseContainerImage(name string) *shared.ContainerImage {
+	name = strings.TrimPrefix(name, "/")
+	registry := DefaultRegistry
+	regPattern := regexp.MustCompile("^([^/]+.[a-z]+)/")
+	regDomain := regPattern.FindString(name)
+	if regDomain != "" {
+		registry = strings.TrimSuffix(regDomain, "/")
+	}
+	imgParts := strings.Split(strings.TrimSuffix(name, shared.OCISuffix), ":")
+	if len(imgParts) < 2 {
+		imgParts = append(imgParts, "latest")
+	}
+	return &shared.ContainerImage{
+		Registry: registry,
+		Name:     imgParts[0],
+		Tag:      imgParts[1],
+	}
+}
+
 // ImportImages loads all images from the default folder and imports them.
 // After importing, the images are being deleted.
 func ImportImages() error {
-	containerPath := filepath.Join(Unseal.OutputPath, shared.ContainerImagePrefix, "**", "*.oci")
-	origRegs, err := filepath.Glob(containerPath)
-	if err != nil {
+	pathPrefix := filepath.Join(Unseal.OutputPath, shared.ContainerImagePrefix)
+	if err := filepath.Walk(pathPrefix, func(image string, info fs.FileInfo, err error) error {
+		if !info.IsDir() && strings.HasSuffix(info.Name(), shared.OCISuffix) {
+			if err = ImportImage(image, ParseContainerImage(strings.TrimPrefix(image, pathPrefix))); err != nil {
+				return err
+			}
+			if err = os.Remove(image); err != nil {
+				return err
+			}
+		}
+		return err
+	}); err != nil {
 		return err
 	}
-	for _, o := range origRegs {
-		images, err := os.ReadDir(filepath.Join(containerPath, o))
-		if err != nil {
-			return err
-		}
-		for _, image := range images {
-			imgFileName := filepath.Join(containerPath, o, image.Name())
-			if err = ImportImage(imgFileName, shared.ParseContainerImage(o, image.Name())); err != nil {
-				return err
-			}
-			if err = os.Remove(imgFileName); err != nil {
-				return err
-			}
-		}
-	}
-	return os.RemoveAll(containerPath)
+	return os.RemoveAll(pathPrefix)
 }
 
 // ImportImage imports one OCI image into a local containerd storage or a provided registry.
 func ImportImage(ociPath string, img *shared.ContainerImage) error {
-	fmt.Println(ociPath, Unseal.TargetRegistry, img)
 	switch Unseal.TargetRegistry {
 	case LocalRegistry:
 		if _, err := os.Stat(ContainerDSocket); os.IsNotExist(err) || os.IsPermission(err) {
@@ -81,11 +95,10 @@ func ImportImage(ociPath string, img *shared.ContainerImage) error {
 		defer client.Close()
 		tarStream, err := os.Open(ociPath)
 		defer tarStream.Close()
-		imgs, err := client.Import(namespaces.WithNamespace(context.Background(), "default"), tarStream)
+		_, err = client.Import(namespaces.WithNamespace(context.Background(), "default"), tarStream)
 		if err != nil {
 			return err
 		}
-		fmt.Println("Images imported:", imgs)
 		break
 	default:
 		img.Registry = Unseal.TargetRegistry

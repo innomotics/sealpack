@@ -72,6 +72,9 @@ func sealCommand() error {
 		if err != nil {
 			return fmt.Errorf("failed reading image: %v", err)
 		}
+		if _, err = inFile.Seek(0, 0); err != nil {
+			return err
+		}
 		if err = signatures.AddFileFromReader(content.ToFileName(), inFile); err != nil {
 			return fmt.Errorf("failed hashing image: %v", err)
 		}
@@ -184,13 +187,12 @@ func unsealCommand() error {
 			if err == nil {
 				break
 			}
-			fmt.Println(err)
 		}
 		if symKey == nil {
 			return fmt.Errorf("not sealed for the provided private key")
 		}
 		// Decrypt the payload and decrypt it
-		payload, err = symmecrypt.NewReader(envelope.PayloadReader, symKey)
+		payload, err = symmecrypt.NewReader(io.LimitReader(envelope.PayloadReader, envelope.PayloadLen), symKey)
 		if err != nil {
 			return err
 		}
@@ -221,17 +223,33 @@ func unsealCommand() error {
 				return fmt.Errorf("creating archive for %s failed: %s", fullFile, err.Error())
 			}
 			if !strings.HasPrefix(h.Name, TocFileName) {
-				if err = signatures.AddFileFromReader(h.Name, archive.TarReader); err != nil {
+				// Use pipe to parallel read body and create signature
+				buf, bufW := io.Pipe()
+				errCh := make(chan error, 1)
+				go func() {
+					reader := io.TeeReader(archive.TarReader, bufW)
+					f, err := os.Create(fullFile)
+					if err != nil {
+						errCh <- err
+					}
+					if bts, err := io.Copy(f, reader); err != nil {
+						_, _ = fmt.Fprintf(os.Stderr, "EOF after %d bytes of %d\n", bts, h.Size)
+						errCh <- err
+					}
+					if err = f.Sync(); err != nil {
+						errCh <- err
+					}
+					if err = f.Close(); err != nil {
+						errCh <- err
+					}
+					defer func() {
+						errCh <- bufW.Close()
+					}()
+				}()
+				if err = signatures.AddFileFromReader(h.Name, buf); err != nil {
 					return err
 				}
-				f, err := os.Create(fullFile)
-				if err != nil {
-					return err
-				}
-				if _, err = io.Copy(f, archive.TarReader); err != nil {
-					return err
-				}
-				if err = f.Close(); err != nil {
+				if err = <-errCh; err != nil && err != io.EOF {
 					return err
 				}
 			} else {
@@ -262,12 +280,7 @@ func unsealCommand() error {
 	}
 
 	// If everything matches, reimport images if target registry has been provided
-	if common.Unseal.TargetRegistry != "" {
-		if err = common.ImportImages(); err != nil {
-			return err
-		}
-	}
-	return nil
+	return common.ImportImages()
 }
 
 // check tests if an error is nil; if not, it logs the error and exits the program
