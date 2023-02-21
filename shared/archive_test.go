@@ -7,16 +7,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func Test_CreateWriteFinalizeArchive(t *testing.T) {
 	// Create Archive creates buffer and writers
-	arc := CreateArchive()
+	arc := CreateArchiveWriter(true)
 	assert.NotNil(t, arc.compressWriter)
 	assert.NotNil(t, arc.tarWriter)
-	assert.NotNil(t, arc.buffer)
+	assert.NotNil(t, arc.outFile)
+	assert.Nil(t, arc.encryptWriter)
 
 	// Add 2 files with 1000 bytes each
 	contents := make([]byte, 1000)
@@ -30,18 +32,21 @@ func Test_CreateWriteFinalizeArchive(t *testing.T) {
 	b, err := arc.Finalize()
 	assert.NoError(t, err)
 	// ~130 bytes compressed
-	assert.True(t, len(b) >= 130 && len(b) <= 135)
+	assert.True(t, b >= 130 && b <= 135)
 }
 
 func Test_OpenArchive(t *testing.T) {
 	// Arrange
-	arc := CreateArchive()
+	arc := CreateArchiveWriter(true)
 	assert.NoError(t, arc.AddToArchive("path/to/foo", []byte("Hold your breath and count to 10.")))
 	b, err := arc.Finalize()
 	assert.NoError(t, err)
+	assert.True(t, b > 10)
 
 	// Act
-	ra, err := OpenArchive(b)
+	f, err := os.Open(arc.outFile.Name())
+	assert.NoError(t, err)
+	ra, err := OpenArchiveReader(f)
 	assert.NoError(t, err)
 	assert.NotNil(t, ra.compressReader)
 	assert.NotNil(t, ra.TarReader)
@@ -65,16 +70,18 @@ func Test_Envelope(t *testing.T) {
 	envelope := &Envelope{
 		HashAlgorithm: crypto.SHA256,
 	}
-	assert.Equal(t, 0, len(envelope.PayloadEncrypted))
+	var err error
+	assert.Equal(t, int64(0), envelope.PayloadLen)
 	assert.Equal(t, crypto.SHA256, envelope.HashAlgorithm)
 	assert.Equal(t, 0, len(envelope.ReceiverKeys))
-	envelope.PayloadEncrypted = []byte("Hold your breath and count to 10")
+	envelope.PayloadWriter, err = os.Create(filepath.Join("../test", "tmp.bin"))
+	assert.NoError(t, err)
 	envelope.ReceiverKeys = [][]byte{[]byte("fuyoooh!")}
 
 	// Test string
 	strs := strings.Split(envelope.String(), "\n")
 	assert.Contains(t, strs[0], "is a sealed package")
-	assert.Contains(t, strs[1], "32 Bytes")
+	assert.Contains(t, strs[1], "0 Bytes")
 	assert.Contains(t, strs[2], "SHA-256 (32 Bit)")
 	assert.Contains(t, strs[3], "for 1 recievers")
 
@@ -82,7 +89,7 @@ func Test_Envelope(t *testing.T) {
 	bts := envelope.ToBytes()
 	payloadLen := make([]byte, 9)
 	payloadLen[0] = 5
-	binary.LittleEndian.PutUint64(payloadLen[1:], uint64(len(envelope.PayloadEncrypted)))
+	binary.LittleEndian.PutUint64(payloadLen[1:], uint64(envelope.PayloadLen))
 	assert.Equal(t, append([]byte(EnvelopeMagicBytes), payloadLen...), bts[:13])
 	assert.Equal(t, []byte("fuyoooh!"), bts[len(bts)-8:])
 

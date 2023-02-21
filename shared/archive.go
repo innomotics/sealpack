@@ -56,7 +56,9 @@ func ParseEnvelope(input io.ReadSeeker) (*Envelope, error) {
 		}
 		envel.ReceiverKeys = append(envel.ReceiverKeys, receiverKey.Bytes())
 	}
-	envel.PayloadReader.Seek(13, 0)
+	if _, err = envel.PayloadReader.Seek(13, 0); err != nil {
+		return nil, err
+	}
 	return envel, nil
 }
 
@@ -230,7 +232,7 @@ func OpenArchiveReader(r io.Reader) (arc *ReadArchive, err error) {
 }
 
 // Finalize closes the tar and gzip writers and retrieves the archive.
-// In addition
+// Additionally, it returns the size of the payload.
 func (arc *WriteArchive) Finalize() (int64, error) {
 	// Finish archive packaging and get contents
 	var err error

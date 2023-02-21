@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sealpack/shared"
+	"strings"
 	"testing"
 )
 
@@ -52,8 +54,10 @@ func Test_WriteFileS3(t *testing.T) {
 	// Arrange
 	Seal.Output = "s3://somebucket/someprefix/some.object"
 	content := []byte("Hold your breath and count to 10.")
-	uploadS3 = func(contents []byte, uri string) error {
-		assert.Equal(t, content, contents)
+	uploadS3 = func(reader io.ReadSeeker, uri string) error {
+		bts, err := io.ReadAll(reader)
+		assert.NoError(t, err)
+		assert.Equal(t, content, bts)
 		assert.Equal(t, Seal.Output, uri)
 		return nil
 	}
@@ -70,4 +74,22 @@ func Test_WriteFileUnallowed(t *testing.T) {
 	// Act
 	err := WriteFileBytes(content)
 	assert.Error(t, err)
+}
+
+func Test_ContainerImage(t *testing.T) {
+	image := "cr.siemens.com/mathias.haimerl/sealpack:latest"
+	ci := ParseContainerImage(image)
+	assert.Equal(t,
+		strings.Join(
+			[]string{shared.ContainerImagePrefix, ci.Registry, ci.Name + ":" + ci.Tag + shared.OCISuffix},
+			"/",
+		),
+		ci.ToFileName(),
+	)
+	assert.Equal(t, strings.Join(
+		[]string{ci.Registry, ci.Name + ":" + ci.Tag},
+		"/",
+	),
+		ci.String(),
+	)
 }
