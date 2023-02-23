@@ -238,9 +238,8 @@ func (arc *WriteArchive) Finalize() (int64, error) {
 	var err error
 	_, closeable := arc.compressWriter.(interface{}).(io.Closer)
 	if closeable {
-		if err = arc.compressWriter.(io.Closer).Close(); err != nil {
-			return 0, err
-		}
+		// Do not fail on closing closed closer
+		_ = arc.compressWriter.(io.Closer).Close()
 	}
 	if err = arc.tarWriter.Close(); err != nil {
 		return 0, err

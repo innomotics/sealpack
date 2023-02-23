@@ -46,7 +46,9 @@ func Test_OpenArchive(t *testing.T) {
 	// Act
 	f, err := os.Open(arc.outFile.Name())
 	assert.NoError(t, err)
-	ra, err := OpenArchiveReader(f)
+	data, err := io.ReadAll(f)
+	assert.NoError(t, err)
+	ra, err := OpenArchive(data)
 	assert.NoError(t, err)
 	assert.NotNil(t, ra.compressReader)
 	assert.NotNil(t, ra.TarReader)
