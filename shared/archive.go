@@ -234,8 +234,13 @@ func OpenArchiveReader(r io.Reader) (arc *ReadArchive, err error) {
 // Finalize closes the tar and gzip writers and retrieves the archive.
 // Additionally, it returns the size of the payload.
 func (arc *WriteArchive) Finalize() (int64, error) {
-	// Finish archive packaging and get contents
 	var err error
+	// Collect size
+	stat, err := os.Stat(arc.outFile.Name())
+	if err != nil {
+		return 0, err
+	}
+	// Finish archive packaging and get contents
 	_, closeable := arc.compressWriter.(interface{}).(io.Closer)
 	if closeable {
 		// Do not fail on closing closed closer
@@ -248,11 +253,6 @@ func (arc *WriteArchive) Finalize() (int64, error) {
 		if err = arc.encryptWriter.Close(); err != nil {
 			return 0, err
 		}
-	}
-	// Collect size
-	stat, err := os.Stat(arc.outFile.Name())
-	if err != nil {
-		return 0, err
 	}
 	return stat.Size(), nil
 }
