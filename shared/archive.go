@@ -235,11 +235,6 @@ func OpenArchiveReader(r io.Reader) (arc *ReadArchive, err error) {
 // Additionally, it returns the size of the payload.
 func (arc *WriteArchive) Finalize() (int64, error) {
 	var err error
-	// Collect size
-	stat, err := os.Stat(arc.outFile.Name())
-	if err != nil {
-		return 0, err
-	}
 	// Finish archive packaging and get contents
 	if err = arc.tarWriter.Close(); err != nil {
 		return 0, err
@@ -255,6 +250,11 @@ func (arc *WriteArchive) Finalize() (int64, error) {
 		if err = arc.encryptWriter.Close(); err != nil {
 			return 0, err
 		}
+	}
+	// Collect size
+	stat, err := os.Stat(arc.outFile.Name())
+	if err != nil {
+		return 0, err
 	}
 	return stat.Size(), nil
 }
