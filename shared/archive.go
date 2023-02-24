@@ -241,13 +241,15 @@ func (arc *WriteArchive) Finalize() (int64, error) {
 		return 0, err
 	}
 	// Finish archive packaging and get contents
+	if err = arc.tarWriter.Close(); err != nil {
+		return 0, err
+	}
 	_, closeable := arc.compressWriter.(interface{}).(io.Closer)
 	if closeable {
 		// Do not fail on closing closed closer
-		_ = arc.compressWriter.(io.Closer).Close()
-	}
-	if err = arc.tarWriter.Close(); err != nil {
-		return 0, err
+		if err = arc.compressWriter.(io.Closer).Close(); err != nil {
+			return 0, err
+		}
 	}
 	if arc.encryptWriter != nil {
 		if err = arc.encryptWriter.Close(); err != nil {
