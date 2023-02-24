@@ -57,7 +57,7 @@ func DownloadEcrImage(content *shared.ContainerImage) ([]byte, error) {
 		return nil, err
 	}
 	om[0].Config = manifest.Config.Digest[7:] + ".json"
-	if err = shared.WriteToTar(imageTarWriter, &om[0].Config, data); err != nil {
+	if err = shared.BytesToTar(imageTarWriter, &om[0].Config, data); err != nil {
 		return nil, err
 	}
 	// Download and add all layers.
@@ -78,7 +78,7 @@ func DownloadEcrImage(content *shared.ContainerImage) ([]byte, error) {
 		if _, err = dataBuf.ReadFrom(gunzip); err != nil {
 			return nil, err
 		}
-		if err = shared.WriteToTar(imageTarWriter, &om[0].Layers[len(om[0].Layers)-1], dataBuf.Bytes()); err != nil {
+		if err = shared.BytesToTar(imageTarWriter, &om[0].Layers[len(om[0].Layers)-1], dataBuf.Bytes()); err != nil {
 			return nil, err
 		}
 	}
@@ -87,7 +87,7 @@ func DownloadEcrImage(content *shared.ContainerImage) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = shared.WriteToTar(imageTarWriter, aws.String("manifest.json"), outManifestBytes); err != nil {
+	if err = shared.BytesToTar(imageTarWriter, aws.String("manifest.json"), outManifestBytes); err != nil {
 		return nil, err
 	}
 	if err = imageTarWriter.Close(); err != nil {

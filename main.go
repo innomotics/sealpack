@@ -29,7 +29,6 @@ var (
 
 // main is the central entrypoint for sealpack.
 func main() {
-
 	// Parse CLI params and config
 	check(ParseCommands())
 }
@@ -37,42 +36,56 @@ func main() {
 // sealCommand is the combined command for sealing
 func sealCommand() error {
 	var err error
-
 	// 1. Create Signer according to configuration
 	_, _ = fmt.Fprintln(os.Stderr, "[1] Create Signer")
 	signer, err = common.CreateSigner()
 	check(err)
 
+	// 1.1 Create envelope for the resulting file
+	envelope := shared.Envelope{
+		HashAlgorithm: common.GetHashAlgorithm(common.Seal.HashingAlgorithm),
+	}
+
 	// 2. Prepare TARget (pun intended) and add files and signatures
 	_, _ = fmt.Fprintln(os.Stderr, "[2] Bundling WriteArchive")
-	arc := shared.CreateArchive()
+	arc := shared.CreateArchiveWriter(common.Seal.Public)
 	signatures := common.NewSignatureList(common.Seal.HashingAlgorithm)
-	var body []byte
+	var inFile *os.File
 	for _, content := range common.Seal.Files {
-		body, err = os.ReadFile(content)
+		inFile, err = os.Open(content)
 		content = strings.TrimPrefix(content, "/")
 		if err != nil {
 			return fmt.Errorf("failed reading file: %v", err)
 		}
-		if err = signatures.AddFile(content, body); err != nil {
+		if err = signatures.AddFileFromReader(content, inFile); err != nil {
 			return fmt.Errorf("failed hashing file: %v", err)
 		}
-		if err = arc.AddToArchive(content, body); err != nil {
+		if err = arc.WriteToArchive(content, inFile); err != nil {
 			return fmt.Errorf("failed adding file to archive: %v", err)
+		}
+		if err = inFile.Close(); err != nil {
+			return err
 		}
 	}
 	for _, content := range common.Seal.Images {
-		body, err = common.SaveImage(&content)
+		inFile, err = common.SaveImage(&content)
 		if err != nil {
 			return fmt.Errorf("failed reading image: %v", err)
 		}
-		if err = signatures.AddFile(content.ToFileName(), body); err != nil {
+		if _, err = inFile.Seek(0, 0); err != nil {
+			return err
+		}
+		if err = signatures.AddFileFromReader(content.ToFileName(), inFile); err != nil {
 			return fmt.Errorf("failed hashing image: %v", err)
 		}
-		if err = arc.AddToArchive(content.ToFileName(), body); err != nil {
+		if err = arc.WriteToArchive(content.ToFileName(), inFile); err != nil {
 			return fmt.Errorf("failed adding image to archive: %v", err)
 		}
+		if err = inFile.Close(); err != nil {
+			return err
+		}
 	}
+	_ = common.CleanupImages() // Ignore: may not exist if no images have been stored
 
 	// 3. Add TOC and sign it
 	_, _ = fmt.Fprintln(os.Stderr, "[3] Adding TOC")
@@ -87,32 +100,23 @@ func sealCommand() error {
 	if err = arc.AddToArchive(TocFileName+".sig", tocSignature); err != nil {
 		return fmt.Errorf("failed adding TOC signature to archive: %v", err)
 	}
-
-	// 4. Encrypt archive
-	_, _ = fmt.Fprintln(os.Stderr, "[4] Encrypting WriteArchive")
-	archive, err := arc.Finalize()
+	envelope.PayloadLen, err = arc.Finalize()
 	if err != nil {
-		return fmt.Errorf("failed encrypting archive: %v", err)
+		return fmt.Errorf("failed finalizing archive: %v", err)
 	}
+
+	// 4. Encrypt keys
+	_, _ = fmt.Fprintln(os.Stderr, "[4] Encrypting WriteArchive")
 	// Now create encryption key and seal them for all recipients
-	envelope := shared.Envelope{
-		HashAlgorithm: common.GetHashAlgorithm(common.Seal.HashingAlgorithm),
-	}
-	if common.Seal.Public {
-		envelope.ReceiverKeys = [][]byte{}
-		envelope.PayloadEncrypted = archive
-	} else {
-		var symKey []byte
-		if envelope.PayloadEncrypted, symKey, err = common.Encrypt(archive); err != nil {
-			return err
-		}
+	envelope.ReceiverKeys = [][]byte{}
+	if !common.Seal.Public {
 		envelope.ReceiverKeys = make([][]byte, len(common.Seal.RecipientPubKeyPaths))
 		for iKey, recipientPubKeyPath := range common.Seal.RecipientPubKeyPaths {
 			var recPubKey *rsa.PublicKey
-			if recPubKey, err = common.LoadPublicKey(recipientPubKeyPath); err != nil {
+			if recPubKey, err = shared.LoadPublicKey(recipientPubKeyPath); err != nil {
 				return err
 			}
-			if envelope.ReceiverKeys[iKey], err = rsa.EncryptPKCS1v15(rand.Reader, recPubKey, symKey); err != nil {
+			if envelope.ReceiverKeys[iKey], err = rsa.EncryptPKCS1v15(rand.Reader, recPubKey, []byte(arc.EncryptionKey)); err != nil {
 				return err
 			}
 			if len(envelope.ReceiverKeys[iKey]) != recPubKey.Size() {
@@ -120,14 +124,27 @@ func sealCommand() error {
 			}
 		}
 	}
-	// 5. Store encrypted file
-	_, _ = fmt.Fprintln(os.Stderr, "[5] Save WriteArchive")
-	return common.WriteFile(envelope.ToBytes())
+
+	// 5. Write envelope
+	out, err := common.NewOutputFile()
+	if err != nil {
+		return err
+	}
+	if err = envelope.WriteOutput(out, arc); err != nil {
+		return err
+	}
+	if err = arc.Cleanup(); err != nil {
+		return err
+	}
+	if err = common.CleanupFileWriter(out); err != nil {
+		return err
+	}
+	return nil
 }
 
 // inspectCommand is the central command for inspecting a potentially sealed file
 func inspectCommand() error {
-	raw, err := os.ReadFile(common.SealedFile)
+	raw, err := os.Open(common.SealedFile)
 	if err != nil {
 		return err
 	}
@@ -141,11 +158,11 @@ func inspectCommand() error {
 
 // unsealCommand is the combined command for unsealing
 func unsealCommand() error {
-	verifier, err := common.CreatePKIVerifier()
+	verifier, err := shared.CreatePKIVerifier(common.Unseal.SigningKeyPath)
 	if err != nil {
 		return err
 	}
-	raw, err := os.ReadFile(common.SealedFile)
+	raw, err := os.Open(common.SealedFile)
 	if err != nil {
 		return err
 	}
@@ -154,40 +171,39 @@ func unsealCommand() error {
 	if err != nil {
 		return err
 	}
-	var payload []byte
+	var payload io.Reader
 	if len(envelope.ReceiverKeys) < 1 {
 		// Was not encrypted: public archive
-		payload = envelope.PayloadEncrypted
+		payload = envelope.PayloadReader
 	} else {
 		// Try to find a key that can be decrypted with the provided private key
-		pKey, err := common.LoadPrivateKey(common.Unseal.PrivKeyPath)
+		pKey, err := shared.LoadPrivateKey(common.Unseal.PrivKeyPath)
 		if err != nil {
 			return err
 		}
 		var symKey symmecrypt.Key
 		for _, key := range envelope.ReceiverKeys {
-			symKey, err = common.TryUnsealKey(key, pKey)
+			symKey, err = shared.TryUnsealKey(key, pKey)
 			if err == nil {
 				break
 			}
-			fmt.Println(err)
 		}
 		if symKey == nil {
 			return fmt.Errorf("not sealed for the provided private key")
 		}
 		// Decrypt the payload and decrypt it
-		payload, err = symKey.Decrypt(envelope.PayloadEncrypted)
+		payload, err = symmecrypt.NewReader(io.LimitReader(envelope.PayloadReader, envelope.PayloadLen), symKey)
 		if err != nil {
 			return err
 		}
 	}
-	archive, err := shared.OpenArchive(payload)
+	archive, err := shared.OpenArchiveReader(payload)
 	if err != nil {
 		return err
 	}
 	var h *tar.Header
 	signatures := common.NewSignatureList(common.Unseal.HashingAlgorithm)
-	var toc, tocSignature []byte
+	var toc, tocSignature *bytes.Buffer
 	for {
 		h, err = archive.TarReader.Next()
 		if err == io.EOF {
@@ -206,22 +222,47 @@ func unsealCommand() error {
 			if err = os.MkdirAll(filepath.Dir(fullFile), 0755); err != nil {
 				return fmt.Errorf("creating archive for %s failed: %s", fullFile, err.Error())
 			}
-			outFile := new(bytes.Buffer)
-			if _, err = io.Copy(outFile, archive.TarReader); err != nil {
-				log.Fatalf("read contents failed: %s", err.Error())
-			}
 			if !strings.HasPrefix(h.Name, TocFileName) {
-				if err = signatures.AddFile(h.Name, outFile.Bytes()); err != nil {
+				// Use pipe to parallel read body and create signature
+				buf, bufW := io.Pipe()
+				errCh := make(chan error, 1)
+				go func() {
+					reader := io.TeeReader(archive.TarReader, bufW)
+					f, err := os.Create(fullFile)
+					if err != nil {
+						errCh <- err
+					}
+					if bts, err := io.Copy(f, reader); err != nil {
+						_, _ = fmt.Fprintf(os.Stderr, "EOF after %d bytes of %d\n", bts, h.Size)
+						errCh <- err
+					}
+					if err = f.Sync(); err != nil {
+						errCh <- err
+					}
+					if err = f.Close(); err != nil {
+						errCh <- err
+					}
+					defer func() {
+						errCh <- bufW.Close()
+					}()
+				}()
+				if err = signatures.AddFileFromReader(h.Name, buf); err != nil {
 					return err
 				}
-				if err = os.WriteFile(fullFile, outFile.Bytes(), 0755); err != nil {
+				if err = <-errCh; err != nil && err != io.EOF {
 					return err
 				}
 			} else {
 				if h.Name == TocFileName {
-					toc = outFile.Bytes()
+					toc = new(bytes.Buffer)
+					if _, err = io.Copy(toc, archive.TarReader); err != nil {
+						return err
+					}
 				} else {
-					tocSignature = outFile.Bytes()
+					tocSignature = new(bytes.Buffer)
+					if _, err = io.Copy(tocSignature, archive.TarReader); err != nil {
+						return err
+					}
 				}
 			}
 		default:
@@ -229,22 +270,17 @@ func unsealCommand() error {
 		}
 	}
 	// Test if TOC matches collected signatures TOC amd then verify that the TOC signature matches the binary TOC
-	if bytes.Compare(toc, signatures.Bytes()) != 0 {
+	if bytes.Compare(toc.Bytes(), signatures.Bytes()) != 0 {
 		return fmt.Errorf("tocs not matching")
 	}
-	if err = verifier.VerifySignature(bytes.NewReader(tocSignature), bytes.NewReader(toc)); err != nil {
-		os.WriteFile("toc", toc, 0777)
-		os.WriteFile("toc.sig", tocSignature, 0777)
+	if err = verifier.VerifySignature(tocSignature, toc); err != nil {
+		os.WriteFile("toc", toc.Bytes(), 0777)
+		os.WriteFile("toc.sig", tocSignature.Bytes(), 0777)
 		return err
 	}
 
 	// If everything matches, reimport images if target registry has been provided
-	if common.Unseal.TargetRegistry != "" {
-		if err = common.ImportImages(); err != nil {
-			return err
-		}
-	}
-	return nil
+	return common.ImportImages()
 }
 
 // check tests if an error is nil; if not, it logs the error and exits the program

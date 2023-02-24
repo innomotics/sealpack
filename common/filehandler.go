@@ -1,6 +1,8 @@
 package common
 
 import (
+	"bytes"
+	"io/ioutil"
 	"os"
 	"sealpack/aws"
 	"strings"
@@ -9,10 +11,10 @@ import (
 var uploadS3 = aws.S3UploadArchive
 var stdout = os.Stdout
 
-// WriteFile allows for writing a byte slice to a regular file, S3 bucket or stdout
-func WriteFile(contents []byte) error {
+// WriteFileBytes allows for writing a byte slice to a regular file, S3 bucket or stdout
+func WriteFileBytes(contents []byte) error {
 	if strings.HasPrefix(Seal.Output, aws.S3UriPrefix) {
-		return uploadS3(contents, Seal.Output)
+		return uploadS3(bytes.NewReader(contents), Seal.Output)
 	} else {
 		var of *os.File
 		var err error
@@ -28,4 +30,30 @@ func WriteFile(contents []byte) error {
 		_, err = of.Write(contents)
 		return err
 	}
+}
+
+// NewOutputFile creates a new output file depending on the type of output target
+func NewOutputFile() (*os.File, error) {
+	if strings.HasPrefix(Seal.Output, aws.S3UriPrefix) {
+		return ioutil.TempFile("", "")
+	}
+	if Seal.Output == "-" {
+		return stdout, nil
+	}
+	return os.Create(Seal.Output)
+}
+
+// CleanupFileWriter cleans up temporary files and performs post-finish operations
+func CleanupFileWriter(f *os.File) error {
+	if strings.HasPrefix(Seal.Output, aws.S3UriPrefix) {
+		tmp, err := os.Open(f.Name())
+		if err != nil {
+			return err
+		}
+		if err = uploadS3(tmp, Seal.Output); err != nil {
+			return err
+		}
+		return os.Remove(f.Name())
+	}
+	return nil
 }
