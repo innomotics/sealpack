@@ -1,13 +1,18 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
+	"fmt"
+	"github.com/canonical/go-tpm2"
+	"github.com/canonical/go-tpm2/linux"
 	"github.com/spf13/cobra"
 	"log"
 	"os"
 	"sealpack/common"
 	"sealpack/shared"
 	"strings"
+	"time"
 )
 
 var (
@@ -60,20 +65,17 @@ var (
 		},
 	}
 
-	/*
-		testCmd = &cobra.Command{
-			Use:   "test",
-			Short: "Test something",
-			Run: func(cmd *cobra.Command, args []string) {
-				check(TestHashSequence())
-			},
-		}
-	*/
+	testCmd = &cobra.Command{
+		Use:   "test",
+		Short: "Test something",
+		Run: func(cmd *cobra.Command, args []string) {
+			check(TestHashSequence())
+		},
+	}
 
 	contents string
 )
 
-/*
 func TestHashSequence() error {
 	timeStart := time.Now()
 	tcti, err := linux.OpenDevice("/dev/tpm0")
@@ -91,7 +93,7 @@ func TestHashSequence() error {
 
 	//h := alg.NewHash()
 	maxBlockSize := tpm.GetInputBuffer()
-	f, err := os.Open("/home/z003t8rs/Downloads/iqem-feat-swapfile-7cc17c3-airgap.ipc")
+	f, err := os.Open("/home/z003t8rs/Downloads/iqem-fix-swapfile-f26e54d-airgap.ipc")
 	if err != nil {
 		return err
 	}
@@ -127,7 +129,6 @@ func TestHashSequence() error {
 	fmt.Println(time.Now().Sub(timeStart))
 	return nil
 }
-*/
 
 // ParseCommands is configuring all cobra commands and execute them
 func ParseCommands() error {
@@ -158,7 +159,7 @@ func ParseCommands() error {
 	unsealCmd.Flags().StringVarP(&common.Unseal.HashingAlgorithm, "hashing-algorithm", "a", "SHA512", "Name of hashing algorithm to be used")
 	unsealCmd.Flags().StringVarP(&common.Unseal.TargetRegistry, "target-registry", "r", common.LocalRegistry, "URL of the target registry to import container images; 'local' imports them locally")
 
-	// rootCmd.AddCommand(testCmd)
+	rootCmd.AddCommand(testCmd)
 
 	return rootCmd.Execute()
 }

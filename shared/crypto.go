@@ -1,4 +1,4 @@
-package common
+package shared
 
 import (
 	"crypto"
@@ -12,6 +12,7 @@ import (
 	"github.com/ovh/symmecrypt/ciphers/xchacha20poly1305"
 	"github.com/ovh/symmecrypt/keyloader"
 	"github.com/sigstore/sigstore/pkg/signature"
+	"io"
 	"os"
 	"time"
 )
@@ -80,8 +81,8 @@ func parsePrivateKey(block []byte) (PrivateKey, error) {
 }
 
 // CreatePKISigner uses the private key to create a signature.Signer instance
-func CreatePKISigner() (signature.Signer, error) {
-	pKey, err := LoadPrivateKey(Seal.PrivKeyPath)
+func CreatePKISigner(pkeyPath string) (signature.Signer, error) {
+	pKey, err := LoadPrivateKey(pkeyPath)
 	if err != nil {
 		return nil, err
 	}
@@ -89,8 +90,8 @@ func CreatePKISigner() (signature.Signer, error) {
 }
 
 // CreatePKIVerifier builds a verifier based on a public key
-func CreatePKIVerifier() (signature.Verifier, error) {
-	pubKey, err := LoadPublicKey(Unseal.SigningKeyPath)
+func CreatePKIVerifier(skeyPath string) (signature.Verifier, error) {
+	pubKey, err := LoadPublicKey(skeyPath)
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +115,17 @@ func Encrypt(unencrypted []byte) ([]byte, []byte, error) {
 		return nil, nil, err
 	}
 	return encrypted, []byte(keyConfig.Key), nil
+}
+
+func EncryptWriter(w io.Writer) (string, io.WriteCloser) {
+	keyConfig, _ := keyloader.GenerateKey(
+		xchacha20poly1305.CipherName, // The recommended cipher
+		"log_key",
+		false,
+		time.Now(),
+	)
+	key, _ := keyloader.NewKey(keyConfig)
+	return keyConfig.Key, symmecrypt.NewWriter(w, key)
 }
 
 // TryUnsealKey loads a key from JSON without configstore

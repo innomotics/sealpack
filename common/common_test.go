@@ -5,6 +5,7 @@ import (
 	"github.com/sigstore/sigstore/pkg/signature/kms/aws"
 	"github.com/stretchr/testify/assert"
 	"path/filepath"
+	"sealpack/shared"
 	"testing"
 )
 
@@ -15,7 +16,7 @@ func Test_CreateSigner(t *testing.T) {
 		HashingAlgorithm: "SHA512",
 		PrivKeyPath:      filepath.Join(filepath.Clean(TestFilePath), "private.pem"),
 	}
-	privKey, err := LoadPrivateKey(Seal.PrivKeyPath)
+	privKey, err := shared.LoadPrivateKey(Seal.PrivKeyPath)
 	assert.Nil(t, err)
 	sig, err := CreateSigner()
 	assert.Nil(t, err)
