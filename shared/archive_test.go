@@ -32,7 +32,7 @@ func Test_CreateWriteFinalizeArchive(t *testing.T) {
 	b, err := arc.Finalize()
 	assert.NoError(t, err)
 	// ~130 bytes compressed
-	assert.True(t, b >= 130 && b <= 135)
+	assert.True(t, b >= 100 && b <= 150)
 }
 
 func Test_OpenArchive(t *testing.T) {

@@ -44,8 +44,8 @@ type OutManifest struct {
 
 // ArchiveContents describes all contents for an archive to provide them as a single file.
 type ArchiveContents struct {
-	Files  []string         `json:"files"`
-	Images []ContainerImage `json:"images"`
+	Files  []string `json:"files"`
+	Images []string `json:"images"`
 }
 
 // ContainerImage describes a container image uniquely
