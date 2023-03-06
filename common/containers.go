@@ -16,12 +16,12 @@ import (
 const (
 	LocalRegistry    = "local"
 	ContainerDSocket = "/run/containerd/containerd.sock"
+	TmpFolderName    = "crane.dl"
 )
 
-// SaveImage with podman's Image registry.
-// Functionality implemented according to "podman image save"
+// SaveImage with from a registry to a local OCI file.
 func SaveImage(img *shared.ContainerImage) (result *os.File, err error) {
-	tmpdir := filepath.Join(os.TempDir(), "crane.dl", img.ToFileName())
+	tmpdir := filepath.Join(os.TempDir(), TmpFolderName, img.ToFileName())
 	if err = os.MkdirAll(filepath.Dir(tmpdir), 0777); err != nil {
 		return nil, err
 	}
@@ -38,17 +38,21 @@ func SaveImage(img *shared.ContainerImage) (result *os.File, err error) {
 	return result, err
 }
 
+// CleanupImages removes the temp folder where container images are stored.
 func CleanupImages() error {
-	return os.RemoveAll(filepath.Join(os.TempDir(), "crane.dl"))
+	return os.RemoveAll(filepath.Join(os.TempDir(), TmpFolderName))
 }
 
+// ParseContainerImage takes a string describing an image and parses the registry, name and tag out of it.
 func ParseContainerImage(name string) *shared.ContainerImage {
 	name = strings.TrimPrefix(name, "/")
 	registry := DefaultRegistry
-	regPattern := regexp.MustCompile("^([^/]+.[a-z]+)/")
+	regPattern := regexp.MustCompile("^([^/]+(\\.[^/]+)+)/")
 	regDomain := regPattern.FindString(name)
 	if regDomain != "" {
-		registry = strings.TrimSuffix(regDomain, "/")
+		firstSlash := strings.Index(name, "/")
+		registry = name[:firstSlash]
+		name = name[firstSlash+1:]
 	}
 	imgParts := strings.Split(strings.TrimSuffix(name, shared.OCISuffix), ":")
 	if len(imgParts) < 2 {
@@ -92,10 +96,14 @@ func ImportImage(ociPath string, img *shared.ContainerImage) error {
 		if err != nil {
 			return err
 		}
-		defer client.Close()
 		tarStream, err := os.Open(ociPath)
-		defer tarStream.Close()
 		_, err = client.Import(namespaces.WithNamespace(context.Background(), "default"), tarStream)
+		if err = tarStream.Close(); err != nil {
+			return err
+		}
+		if err = client.Close(); err != nil {
+			return err
+		}
 		if err != nil {
 			return err
 		}
