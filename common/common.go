@@ -17,7 +17,7 @@ type SealConfig struct {
 	HashingAlgorithm     string
 	Files                []string
 	ImageNames           []string
-	Images               []shared.ContainerImage
+	Images               []*shared.ContainerImage
 	Output               string
 }
 
@@ -31,7 +31,6 @@ type UnsealConfig struct {
 
 const (
 	DefaultRegistry = "docker.io"
-	DefaultTag      = "latest"
 )
 
 var (
