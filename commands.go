@@ -3,9 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
-	"log"
 	"os"
 	"path/filepath"
 	"sealpack/common"
@@ -14,10 +14,20 @@ import (
 )
 
 var (
+	// logLevel defines the verbosity of logging
+	logLevel string
 	// rootCmd describes the main cobra.Command
 	rootCmd = &cobra.Command{
 		Use:  "sealpack",
 		Long: "A cryptographic sealing packager",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			l, err := log.ParseLevel(logLevel)
+			if err != nil {
+				return err
+			}
+			log.SetLevel(l)
+			return err
+		},
 	}
 	// sealCmd describes the `trigger` subcommand as cobra.Command
 	sealCmd = &cobra.Command{
@@ -28,6 +38,7 @@ var (
 			if contents != "" {
 				if err := readConfiguration(contents); err != nil {
 					log.Fatal("invalid configuration file provided")
+					return
 				}
 			}
 			if len(common.Seal.ImageNames) > 0 {
@@ -38,6 +49,7 @@ var (
 			// public option cannot be used with receiver keys
 			if common.Seal.Public && len(common.Seal.RecipientPubKeyPaths) > 0 {
 				log.Fatal("Cannot use -public with -recipient-pubkey (illogical error)")
+				return
 			}
 			check(sealCommand())
 		},
@@ -74,6 +86,7 @@ func ParseCommands() error {
 	common.Unseal = &common.UnsealConfig{}
 
 	rootCmd.Commands()
+	rootCmd.PersistentFlags().StringVarP(&logLevel, "loglevel", "l", "info", "Logging verbosity. Allowed values are 'debug', 'info', 'warning', 'error', 'fatal'. Default is 'info'")
 
 	rootCmd.AddCommand(sealCmd)
 	sealCmd.Flags().StringVarP(&common.Seal.PrivKeyPath, "privkey", "p", "", "Path to the private signing key. AWS KMS keys can be used with awskms:/// prefix")
