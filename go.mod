@@ -3,14 +3,15 @@ module sealpack
 go 1.18
 
 require (
+	github.com/apex/log v1.9.0
 	github.com/aws/aws-sdk-go v1.44.102
-	github.com/canonical/go-tpm2 v1.0.0
 	github.com/containerd/containerd v1.6.15
 	github.com/google/go-containerregistry v0.11.0
 	github.com/ovh/symmecrypt v0.5.1
 	github.com/sigstore/sigstore v1.4.2
 	github.com/spf13/cobra v1.6.0
 	github.com/stretchr/testify v1.8.0
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
@@ -30,7 +31,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.13.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.16.19 // indirect
 	github.com/aws/smithy-go v1.13.3 // indirect
-	github.com/canonical/go-sp800.108-kdf v0.0.0-20210314145419-a3359f2d21b9 // indirect
 	github.com/containerd/cgroups v1.0.4 // indirect
 	github.com/containerd/continuity v0.3.0 // indirect
 	github.com/containerd/fifo v1.0.0 // indirect
@@ -86,6 +86,5 @@ require (
 	google.golang.org/grpc v1.48.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
