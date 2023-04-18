@@ -1,5 +1,19 @@
 package common
 
+/*
+ * Sealpack
+ *
+ * Copyright (c) Innomotics GmbH, 2023
+ *
+ * Authors:
+ *  Mathias Haimerl <mathias.haimerl@siemens.com>
+ *
+ * This work is licensed under the terms of the Apache 2.0 license.
+ * See the LICENSE.txt file in the top-level directory.
+ *
+ * SPDX-License-Identifier:	Apache-2.0
+ */
+
 import (
 	"context"
 	"github.com/containerd/containerd"
@@ -14,10 +28,34 @@ import (
 )
 
 const (
-	LocalRegistry    = "local"
-	ContainerDSocket = "/run/containerd/containerd.sock"
-	TmpFolderName    = "crane.dl"
+	LocalRegistry          = "local"
+	TmpFolderName          = "crane.dl"
+	ContainerDSocketFolder = "/run"
+	ContainerDSocketFile   = "containerd.sock"
 )
+
+var (
+	ContainerDSocket = ""
+)
+
+// GetContainerDSocket searched for a containerD socket in the /run folder
+func GetContainerDSocket() (string, error) {
+	if ContainerDSocket == "" {
+		err := filepath.Walk(ContainerDSocketFolder, func(path string, info fs.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if strings.HasSuffix(path, ContainerDSocketFile) && (info.Mode()&os.ModeSocket) > 0 {
+				ContainerDSocket = path
+			}
+			return nil
+		})
+		if err != nil {
+			return "", err
+		}
+	}
+	return ContainerDSocket, nil
+}
 
 // SaveImage with from a registry to a local OCI file.
 func SaveImage(img *shared.ContainerImage) (result *os.File, err error) {
@@ -89,10 +127,14 @@ func ImportImages() error {
 func ImportImage(ociPath string, img *shared.ContainerImage) error {
 	switch Unseal.TargetRegistry {
 	case LocalRegistry:
-		if _, err := os.Stat(ContainerDSocket); os.IsNotExist(err) || os.IsPermission(err) {
+		sock, err := GetContainerDSocket()
+		if err != nil {
 			return err
 		}
-		client, err := containerd.New(ContainerDSocket)
+		if _, err = os.Stat(sock); os.IsNotExist(err) || os.IsPermission(err) {
+			return err
+		}
+		client, err := containerd.New(sock)
 		if err != nil {
 			return err
 		}

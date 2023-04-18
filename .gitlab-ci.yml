@@ -42,6 +42,33 @@ SBOM creation:
       cyclonedx:
         - ${SBOM_FILE}
 
+gitleaks check:
+  stage: test
+  image:
+    name: zricethezav/gitleaks:latest
+    entrypoint: [""]
+  variables:
+    GITLEAKS_CONFIG: .gitleaks.toml
+    GITLEAKS_REPORT: gitleaks_report.json
+  script: gitleaks detect --source="." --config=${GITLEAKS_CONFIG} --report-path=${GITLEAKS_REPORT} --verbose
+  artifacts:
+    reports:
+      secret_detection:
+        - ${GITLEAKS_REPORT}
+
+repolinter check:
+  stage: test
+  image: node:alpine3.17
+  variables:
+    GITLEAKS_CONFIG: .gitleaks.toml
+    GITLEAKS_REPORT: gitleaks_report.json
+  script:
+    - npm install -g repolinter
+    - apk update && apk add --no-cache alpine-sdk ruby-dev cmake icu-dev zlib-dev openssl-dev
+    - gem install github-linguist
+    - gem install licensee
+    - repolinter lint .
+
 build binary:
   stage: build
   image: golang:1.19
