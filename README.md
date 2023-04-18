@@ -1,5 +1,7 @@
 # Sealpack - sealed packaging for files and containers
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 This project allows the secure bundling of mobile code.
 This means, files and container images can be packed like with any compression tool, but with a focus on the 
 [CIA triad](https://www.f5.com/labs/learning-center/what-is-the-cia-triad).
@@ -34,9 +36,9 @@ The `unseal` action
 
 ## High level overview
 The prerequisite for a fully featured usage of `sealpack` is every entity having a private-public-key-pair (PPK).
+`sealpack` supports multiple x509 key formats, among those are PEM, PKCS1, and PKIX.
 
-> Private keys must never be shared, best is to [use TPM as PPK storage](https://blog.hansenpartnership.com/using-your-tpm-as-a-secure-key-store/).
-> If not possible, use files with the least access permissions possible.
+> (!) Private keys must never be shared, use files with the least access permissions possible.
 
 A mutual trust must be established by exchanging the public Keys. This means, the sender must have access to all public 
 keys of potential receivers and each receiver must have access to the public key of the sender.
@@ -53,16 +55,22 @@ On the receiver side, unsealing, verification, unpacking and importing is also a
 
 ## Build & Install
 
-To build the CLI binary, just install the dependent modules and execute a `go build`:
+To build the CLI binary, spin up a bash and run:
 ```bash
-go mod tidy
-go build .
+./build.sh
 ```
 
 The `sealpack` binary now includes everything needed to be used. Consider moving it to a place at system's `PATH`.
 
 ## Usage
-The 3 actions are subsequently described in detail.
+
+Common flags:
+
+| Flag     | Short | Type   | Multiple | Mandatory | Default | Description                                                                      |
+|----------|-------|--------|----------|-----------|---------|----------------------------------------------------------------------------------|
+| loglevel | l     | string | n        | n         | `info`  | Minimal log level possible values are `debug`, `info`, `warn`, `error`, `fatal`. |
+
+`sealpack` supports 3 actions , which are subsequently described in detail:
 
 ### `seal`
 ```
@@ -83,25 +91,24 @@ Flags:
   -r, --recipient-pubkey strings   Paths of recipients' public keys
 ```
 
-| Flag              | Short | Type   | Multiple | Mandatory | Default  | Description                                                                                                                       |
-|-------------------|-------|--------|----------|-----------|----------|-----------------------------------------------------------------------------------------------------------------------------------|
-| hashing-algorithm | a     | string | n        | n         | SHA3_512 | Name of algorithm to be used for signature hashing. Valid values must implement `crypto.Hash`.                                    |
-| contents          | c     | string | n        | n         | -        | Provide all contents as a central configurations file in shallow (JSON format)[#json-format] instead of adding one-by-one.        |
-| file              | f     | string | y        | n         | -        | Path to the files to be added to the package.                                                                                     |
-| help              | h     | -      | -        | -         | -        | Flag to display help message. Exits instantly.                                                                                    |
-| image             | i     | string | y        | n         | -        | Names of container images to be added. Full tag with registry can be provided, short forms will default to docker.io              |
-| output            | o     | string | n        | y         | -        | Filename to store the resulting sealed file in.                                                                                   |
-| privkey           | p     | string | n        | y         | -        | Path to the private signing key or AWS KMS keys can be used with awskms:/// prefix. PEM-based PKCS1, PKCS8 and EC keys are valid. |
-| public            | -     | bool   | -        | n         | true     | Flag to not encrypt contents only sign files, so can be retrieved from any receiver.                                              |
-| recipient-pubkey  | r     | string | y        | n         | -        | Paths of recipients' public keys. PEM-based PKIX and PKCS8 keys are valid.                                                        |
+| Flag              | Short | Type   | Multiple | Mandatory | Default | Description                                                                                                                         |
+|-------------------|-------|--------|----------|-----------|---------|-------------------------------------------------------------------------------------------------------------------------------------|
+| hashing-algorithm | a     | string | n        | n         | SHA512  | Name of algorithm to be used for signature hashing. Valid values must implement `crypto.Hash`.                                      |
+| contents          | c     | string | n        | n         | -       | Provide all contents as a central configurations file (supports (JSON)[#json-format], (YAML)[#yaml-format]).                        |
+| file              | f     | string | y        | n         | -       | Path to the files to be added to the package.                                                                                       |
+| help              | h     | -      | -        | -         | -       | Flag to display help message. Exits instantly.                                                                                      |
+| image             | i     | string | y        | n         | -       | Names of container images to be added. Full tag with registry can be provided, short forms will default to docker.io                |
+| output            | o     | string | n        | y         | -       | Filename to store the resulting sealed file in.                                                                                     |
+| privkey           | p     | string | n        | y         | -       | Path to the private signing key or AWS KMS keys can be used with `awskms:///` prefix. PEM-based PKCS1, PKCS8 and EC keys are valid. |
+| public            | -     | bool   | -        | n         | true    | Flag to not encrypt contents only sign files, so can be retrieved from any receiver.                                                |
+| recipient-pubkey  | r     | string | y        | n         | -       | Paths of recipients' public keys. PEM-based PKIX and PKCS8 keys are valid.                                                          |
 
 #### JSON format
 The JSON format to define a list of contents, is kept very simple. The main object has 2 properties:
 * `files`: array of strings, each entry defining one file
-* `images`: array of objects, each one defining one container image defined by:
-  * `registry`: hostname of the registry URL (optional; defaults to `docker.io`)
-  * `name`: name of the image
-  * `tag`: tag of the image
+* `images`: array of objects, each one defining one container image. Omitting a tag defaults to `latest`; omitting a registry defaults to `docker.io`.
+
+Example:
 ```json
 {
   "files": [
@@ -109,18 +116,28 @@ The JSON format to define a list of contents, is kept very simple. The main obje
     "test.docx"
   ],
   "images": [
-    {
-      "registry": "cr.siemens.com",
-      "name": "simatic/sample",
-      "tag": "v0.0.1"
-    },
-    {
-      "registry": "docker.io",
-      "name": "alpine",
-      "tag": "latest"
-    }
+    "alpine",
+    "ghcr.io/simatic/sample:v0.0.1"
   ]
 }
+```
+
+#### YAML format
+The YAML format follows the structure from (JSON)[#json-format].
+
+Example:
+```yaml
+files:
+  - secrets.yaml
+  - test.docx
+images":
+  - alpine
+  - ghcr.io/simatic/sample:v0.0.1
+```
+
+#### `seal` Example
+```bash
+sealpack seal  -p path/to/sender_private.pem --public -o testupgrade.ipc -f /home/z003t8rs/OneDrive/Test.docx -i docker.io/alpine:3.17 -l debug
 ```
 
 ### `inspect`
@@ -140,7 +157,7 @@ Flags:
 
 Inspecting a file leads to one of the following outputs:
 
-Sealed File:
+Sealed package:
 ```
 File is a sealed package.
         Payload size (compressed): 3368974 Bytes
@@ -148,7 +165,7 @@ File is a sealed package.
         Sealed for 2 Recievers
 ```
 
-Unsealed File:
+Public package:
 ```
 File is a public package.
         Payload size (compressed): 3369185 Bytes
@@ -171,11 +188,11 @@ Flags:
   -r, --target-registry string     URL of the target registry to import container images; 'local' imports them locally (default "local")
 ```
 
-| Flag              | Short | Type   | Multiple | Mandatory | Default  | Description                                                                                                           |
-|-------------------|-------|--------|----------|-----------|----------|-----------------------------------------------------------------------------------------------------------------------|
-| hashing-algorithm | a     | string | n        | n         | SHA3_512 | Name of algorithm to be used for signature hashing. Valid values must implement `crypto.Hash`.                        |
-| help              | h     | -      | -        | -         | -        | Flag to display help message. Exits instantly.                                                                        |
-| output            | o     | string | n        | y         | -        | Filename to store the resulting sealed file in.                                                                       |
-| privkey           | p     | string | n        | n         | -        | Path to the private signing key or AWS KMS keys can be used with awskms:/// prefix. PEM-based PKCS1, PKCS8 are valid. |
-| signer-key        | s     | string | n        | y         | -        | Public key of the signing entity.                                                                                     |
-| target-registry   | r     | string | n        | n         | local    | PURL of the target registry to import container images; 'local' imports them locally.                                 |
+| Flag              | Short | Type   | Multiple | Mandatory | Default | Description                                                                                                                      |
+|-------------------|-------|--------|----------|-----------|---------|----------------------------------------------------------------------------------------------------------------------------------|
+| hashing-algorithm | a     | string | n        | n         | SHA512  | Name of algorithm to be used for signature hashing. Valid values must implement `crypto.Hash`.                                   |
+| help              | h     | -      | -        | -         | -       | Flag to display help message. Exits instantly.                                                                                   |
+| output            | o     | string | n        | n         | -       | Filename to store the resulting sealed file in. Defaults to current directory.                                                   |
+| privkey           | p     | string | n        | n         | -       | Path to the private signing key or AWS KMS keys can be used with `awskms:///` prefix. PEM-based PKCS1, PKCS8 are valid.          |
+| signer-key        | s     | string | n        | y         | -       | Public key of the signing entity.                                                                                                |
+| target-registry   | r     | string | n        | n         | local   | PURL of the target registry to import container images; 'local' imports them to a local containerd service. Defaults to 'local'. |

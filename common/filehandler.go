@@ -1,8 +1,21 @@
 package common
 
+/*
+ * Sealpack
+ *
+ * Copyright (c) Innomotics GmbH, 2023
+ *
+ * Authors:
+ *  Mathias Haimerl <mathias.haimerl@siemens.com>
+ *
+ * This work is licensed under the terms of the Apache 2.0 license.
+ * See the LICENSE.txt file in the top-level directory.
+ *
+ * SPDX-License-Identifier:	Apache-2.0
+ */
+
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"sealpack/aws"
 	"strings"
@@ -35,7 +48,7 @@ func WriteFileBytes(contents []byte) error {
 // NewOutputFile creates a new output file depending on the type of output target
 func NewOutputFile() (*os.File, error) {
 	if strings.HasPrefix(Seal.Output, aws.S3UriPrefix) {
-		return ioutil.TempFile("", "")
+		return os.CreateTemp("", "")
 	}
 	if Seal.Output == "-" {
 		return stdout, nil
