@@ -123,6 +123,7 @@ func ParseCommands() error {
 	_ = sealCmd.MarkFlagRequired("signer-key")
 	unsealCmd.Flags().StringVarP(&common.Unseal.HashingAlgorithm, "hashing-algorithm", "a", "SHA512", "Name of hashing algorithm to be used")
 	unsealCmd.Flags().StringVarP(&common.Unseal.TargetRegistry, "target-registry", "r", common.LocalRegistry, "URL of the target registry to import container images; 'local' imports them locally")
+	unsealCmd.Flags().StringVarP(&common.Unseal.Namespace, "namespace", "n", common.ContainerDDefaultNs, "ContainerD namespace to import the images into")
 
 	return rootCmd.Execute()
 }
