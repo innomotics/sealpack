@@ -196,3 +196,4 @@ Flags:
 | privkey           | p     | string | n        | n         | -       | Path to the private signing key or AWS KMS keys can be used with `awskms:///` prefix. PEM-based PKCS1, PKCS8 are valid.          |
 | signer-key        | s     | string | n        | y         | -       | Public key of the signing entity.                                                                                                |
 | target-registry   | r     | string | n        | n         | local   | PURL of the target registry to import container images; 'local' imports them to a local containerd service. Defaults to 'local'. |
+| namespace         | n     | string | n        | n         | default | Namespace of the containerd service ti import into. Defaults to 'default'.                                                       |

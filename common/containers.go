@@ -16,6 +16,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/google/go-containerregistry/pkg/crane"
@@ -32,6 +33,7 @@ const (
 	TmpFolderName          = "crane.dl"
 	ContainerDSocketFolder = "/run"
 	ContainerDSocketFile   = "containerd.sock"
+	ContainerDDefaultNs    = "default"
 )
 
 var (
@@ -138,15 +140,25 @@ func ImportImage(ociPath string, img *shared.ContainerImage) error {
 		if err != nil {
 			return err
 		}
+		nsList, err := client.NamespaceService().List(context.Background())
+		if err != nil {
+			return err
+		}
+		if !contains(nsList, Unseal.Namespace) {
+			return fmt.Errorf("invalid namespace")
+		}
 		tarStream, err := os.Open(ociPath)
-		_, err = client.Import(namespaces.WithNamespace(context.Background(), "default"), tarStream)
+		if err != nil {
+			return err
+		}
+		_, err = client.Import(namespaces.WithNamespace(context.Background(), Unseal.Namespace), tarStream)
+		if err != nil {
+			return err
+		}
 		if err = tarStream.Close(); err != nil {
 			return err
 		}
 		if err = client.Close(); err != nil {
-			return err
-		}
-		if err != nil {
 			return err
 		}
 		break
@@ -159,4 +171,14 @@ func ImportImage(ociPath string, img *shared.ContainerImage) error {
 		return crane.Push(image, img.String())
 	}
 	return nil
+}
+
+// contains is designed as generic slice contents search function
+func contains[Q comparable](haystack []Q, needle Q) bool {
+	for _, val := range haystack {
+		if val == needle {
+			return true
+		}
+	}
+	return false
 }

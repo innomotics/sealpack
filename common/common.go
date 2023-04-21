@@ -41,6 +41,7 @@ type UnsealConfig struct {
 	OutputPath       string
 	HashingAlgorithm string
 	TargetRegistry   string
+	Namespace        string
 }
 
 const (
