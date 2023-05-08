@@ -11,13 +11,13 @@
 
 ## Basic information
 
-Purpose of the project:
+Purpose of the project: provide an easy-to-use CLI tool to sign, compress and encrypt files and containers for specific receivers
 
-Differentiating factor from existing open source projects:
+Differentiating factor from existing open source projects: Single CLI binary based on well-established standards
 
-Why was contributing to an existing project not viable:
+Why was contributing to an existing project not viable: No project alike existed. All used projects are used as part of our contribution
 
-URL of repository to be pushed (should be accessible for internal review):
+URL of repository to be pushed (should be accessible for internal review): https://github.com/innomotics/sealpack
 
 ## Approval
 
@@ -45,6 +45,7 @@ URL of repository to be pushed (should be accessible for internal review):
 * [x] The Git history of the repository is clean, e.g. no orphaned branches, committed binaries or temporary commits.
 * You have verified that your code **does not contain** any of the following information:
     * [ ] Siemens department identifiers (org codes)
+      * LDA is still named, because "lda-portal" is the name of the organization
     * [x] Names of Siemens products or projects, or the corresponding release numbers and their release dates
     * [x] Configuration information for real IT environments, such as server names, IP addresses, login information, passwords or private keys.
     * [x] Names of Siemens employees other than the authors
@@ -57,7 +58,7 @@ URL of repository to be pushed (should be accessible for internal review):
 
 * [x] You do not work directly on the main branch; it is protected
 * [x] You use the [merge request workflow](https://code.siemens.com/help/user/project/merge_requests/index.md) and [Conventional Changelog](https://wiki.siemens.com/display/en/Conventional+Changelog)
-* [ ] `CHANGELOG.md` available and auto generated
+* [x] `CHANGELOG.md` available and auto generated
 * [x] You use CI/CD, e.g. using GitHub actions
 
 ## Documentation
@@ -78,8 +79,9 @@ Open Source contributions](https://code.siemens.com/siemens/code/blob/main/docs/
 and guidance.
 
 * [x] You have chosen a standard [Open Source license](https://opensource.org/licenses) in coordination with the budget owner, according to the projects goals and context.
-* [ ] You have checked that there are no license incompatibilities in your code.
-* [ ] Any third-party components that are published along with the project have gone through a clearing process.
+* [x] You have checked that there are no license incompatibilities in your code.
+  * Did an in-depth license clearing based on a generated SBOM
+* [x] Any third-party components that are published along with the project have gone through a clearing process.
 * [x] You provide the full text of the license in the root directory of your project, e.g. in a file named `LICENSE`.
 * [x] You provide the copyright information in the root directory of your project, e.g. in a file named `COPYING` or in the `README`.
 * [x] Source files contain correct and complete information regarding licensing (using the [SPDX](https://spdx.org/) license identifiers) and copyright.
