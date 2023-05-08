@@ -11,13 +11,13 @@
 
 ## Basic information
 
-Purpose of the project:
+Purpose of the project: provide an easy-to-use CLI tool to sign, compress and encrypt files and containers for specific receivers
 
-Differentiating factor from existing open source projects:
+Differentiating factor from existing open source projects: Single CLI binary based on well-established standards
 
-Why was contributing to an existing project not viable:
+Why was contributing to an existing project not viable: No project alike existed. All used projects are used as part of our contribution
 
-URL of repository to be pushed (should be accessible for internal review):
+URL of repository to be pushed (should be accessible for internal review): https://github.com/innomotics/sealpack
 
 ## Approval
 
@@ -78,8 +78,9 @@ Open Source contributions](https://code.siemens.com/siemens/code/blob/main/docs/
 and guidance.
 
 * [x] You have chosen a standard [Open Source license](https://opensource.org/licenses) in coordination with the budget owner, according to the projects goals and context.
-* [ ] You have checked that there are no license incompatibilities in your code.
-* [ ] Any third-party components that are published along with the project have gone through a clearing process.
+* [x] You have checked that there are no license incompatibilities in your code.
+  * Did an in-depth license clearing based on a generated SBOM
+* [x] Any third-party components that are published along with the project have gone through a clearing process.
 * [x] You provide the full text of the license in the root directory of your project, e.g. in a file named `LICENSE`.
 * [x] You provide the copyright information in the root directory of your project, e.g. in a file named `COPYING` or in the `README`.
 * [x] Source files contain correct and complete information regarding licensing (using the [SPDX](https://spdx.org/) license identifiers) and copyright.
