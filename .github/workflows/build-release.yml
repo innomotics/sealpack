@@ -1,0 +1,37 @@
+name: 'Sealpack: Build Release'
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+# This allows a subsequently queued workflow run to interrupt previous runs
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  cancel-in-progress: true
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '>=1.19.0'
+      - run: |
+          mkdir release
+          go mod tidy
+          go build -o release/sealpack .
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: release/sealpack
+          asset_name: sealpack
+          tag: ${{ github.ref }}
+          overwrite: true
+          body: "Release a new Version of Sealpack"

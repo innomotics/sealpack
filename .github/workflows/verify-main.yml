@@ -1,0 +1,61 @@
+name: 'Sealpack: Build Release'
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+# This allows a subsequently queued workflow run to interrupt previous runs
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '>=1.19.0'
+      - run: |
+          mkdir test && pushd test
+          openssl genrsa -out private1024.pem 1024 && openssl rsa -in private1024.pem -pubout -out public1024.pem
+          openssl genrsa -out private2048.pem 2048 && openssl rsa -in private2048.pem -pubout -out public2048.pem
+          openssl genrsa -out private.pem 4096 && openssl rsa -in private.pem -pubout -out public.pem
+          popd
+          go mod tidy
+          go test ./... -coverprofile=coverage.txt -covermode count
+          go get github.com/boumenot/gocover-cobertura
+          go run github.com/boumenot/gocover-cobertura < coverage.txt > coverage.xml
+      - uses: 5monkeys/cobertura-action@master
+        with:
+          path: coverage.xml
+          minimum_coverage: 75
+  scan:
+    name: Perform several scans on the code base
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Perform Gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generate SBOM
+        uses: CycloneDX/gh-gomod-generate-sbom@v1
+        with:
+          version: v1
+          args: mod -licenses -json -output sealpack-sbom.json
+      - name: Perform Repolinter scan
+        uses: philips-labs/github-action-repolinter@master
+        env:
+          CUSTOM_REPOLINT_FILE: repolinter.json
