@@ -45,6 +45,7 @@ URL of repository to be pushed (should be accessible for internal review): https
 * [x] The Git history of the repository is clean, e.g. no orphaned branches, committed binaries or temporary commits.
 * You have verified that your code **does not contain** any of the following information:
     * [ ] Siemens department identifiers (org codes)
+      * LDA is still named, because "lda-portal" is the name of the organization
     * [x] Names of Siemens products or projects, or the corresponding release numbers and their release dates
     * [x] Configuration information for real IT environments, such as server names, IP addresses, login information, passwords or private keys.
     * [x] Names of Siemens employees other than the authors
@@ -57,7 +58,7 @@ URL of repository to be pushed (should be accessible for internal review): https
 
 * [x] You do not work directly on the main branch; it is protected
 * [x] You use the [merge request workflow](https://code.siemens.com/help/user/project/merge_requests/index.md) and [Conventional Changelog](https://wiki.siemens.com/display/en/Conventional+Changelog)
-* [ ] `CHANGELOG.md` available and auto generated
+* [x] `CHANGELOG.md` available and auto generated
 * [x] You use CI/CD, e.g. using GitHub actions
 
 ## Documentation
