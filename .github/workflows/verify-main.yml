@@ -1,4 +1,4 @@
-name: 'Sealpack: Build Release'
+name: 'Sealpack: Run Tests and Scans'
 
 on:
   workflow_dispatch:
@@ -19,13 +19,15 @@ concurrency:
 jobs:
   test:
     name: Unit tests
+    permissions: write-all
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
         with:
           go-version: '>=1.19.0'
-      - run: |
+      - name: Execute Unit tests
+        run: |
           mkdir test && pushd test
           openssl genrsa -out private1024.pem 1024 && openssl rsa -in private1024.pem -pubout -out public1024.pem
           openssl genrsa -out private2048.pem 2048 && openssl rsa -in private2048.pem -pubout -out public2048.pem
@@ -46,10 +48,6 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - name: Perform Gitleaks scan
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate SBOM
         uses: CycloneDX/gh-gomod-generate-sbom@v1
         with:
@@ -59,3 +57,7 @@ jobs:
         uses: philips-labs/github-action-repolinter@master
         env:
           CUSTOM_REPOLINT_FILE: repolinter.json
+      - name: Perform Gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
