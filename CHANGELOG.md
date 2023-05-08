@@ -2,7 +2,11 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
-### [1.1.1](https://code.siemens.com/sidrive-iq/teams/team-ecs/suse-edge/tools/sealpack/compare/v1.1.0...v1.1.1) (2023-05-08)
+### 1.0.1 (2023-05-08)
+
+### Bug Fixes
+
+* allow setting namespace on import
 
 ## 1.0.0 (2023-04-03)
 
