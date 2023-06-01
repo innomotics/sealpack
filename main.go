@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"github.com/apex/log"
 	jsonHandler "github.com/apex/log/handlers/json"
+	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/ovh/symmecrypt"
 	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/sigstore/sigstore/pkg/signature/options"
@@ -40,6 +41,8 @@ const (
 var (
 	signer signature.Signer
 )
+
+type tagList []*name.Tag
 
 // main is the central entrypoint for sealpack.
 func main() {
@@ -255,6 +258,7 @@ func unsealCommand() error {
 	signatures := common.NewSignatureList(common.Unseal.HashingAlgorithm)
 	log.Debug("unseal: read contents from archive")
 	var toc, tocSignature *bytes.Buffer
+	var unsafeTags tagList
 	for {
 		h, err = archive.TarReader.Next()
 		if err == io.EOF {
@@ -264,43 +268,16 @@ func unsealCommand() error {
 			return err
 		}
 		switch h.Typeflag {
-		case tar.TypeDir:
-			if err = os.MkdirAll(filepath.Join(common.Unseal.OutputPath, h.Name), 0755); err != nil {
-				return fmt.Errorf("creating archive %s failed: %s", h.Name, err.Error())
-			}
 		case tar.TypeReg:
 			fullFile := filepath.Join(common.Unseal.OutputPath, h.Name)
-			if err = os.MkdirAll(filepath.Dir(fullFile), 0755); err != nil {
-				return fmt.Errorf("creating archive for %s failed: %s", fullFile, err.Error())
+			if !strings.HasPrefix(h.Name, shared.ContainerImagePrefix) { // Skip creation of folder for images
+				if err = os.MkdirAll(filepath.Dir(fullFile), 0755); err != nil {
+					return fmt.Errorf("creating archive for %s failed: %s", fullFile, err.Error())
+				}
 			}
 			if !strings.HasPrefix(h.Name, TocFileName) {
-				// Use pipe to parallel read body and create signature
-				buf, bufW := io.Pipe()
-				errCh := make(chan error, 1)
-				go func() {
-					reader := io.TeeReader(archive.TarReader, bufW)
-					f, err := os.Create(fullFile)
-					if err != nil {
-						errCh <- err
-					}
-					if bts, err := io.Copy(f, reader); err != nil {
-						log.Errorf("unseal: EOF after %d bytes of %d\n", bts, h.Size)
-						errCh <- err
-					}
-					if err = f.Sync(); err != nil {
-						errCh <- err
-					}
-					if err = f.Close(); err != nil {
-						errCh <- err
-					}
-					defer func() {
-						errCh <- bufW.Close()
-					}()
-				}()
-				if err = signatures.AddFileFromReader(h.Name, buf); err != nil {
-					return err
-				}
-				if err = <-errCh; err != nil && err != io.EOF {
+				err = extractSingleFile(archive, h, &unsafeTags, fullFile, signatures)
+				if err != nil {
 					return err
 				}
 			} else {
@@ -326,16 +303,69 @@ func unsealCommand() error {
 		return fmt.Errorf("tocs not matching")
 	}
 	if err = verifier.VerifySignature(tocSignature, toc); err != nil {
+		// As streaming is done before checking the Signature, rollback all
+		// 1) Rollback Files
+		if errInner := os.RemoveAll(common.Unseal.OutputPath); errInner != nil {
+			log.Errorf("Could not rollback files: %s\n", err.Error())
+		}
+		// 2) Rollback Tags
+		if errInner := common.RemoveAll(unsafeTags); errInner != nil {
+			log.Errorf("Could not rollback images: %s\n", err.Error())
+		}
 		return err
 	}
 
-	// If everything matches, reimport images if target registry has been provided
-	log.Debug("unseal: import images")
-	if err = common.ImportImages(); err != nil {
-		return err
-	}
 	log.Info("unseal: finished unsealing")
 	return nil
+}
+
+func extractSingleFile(archive *shared.ReadArchive, h *tar.Header, unsafeTags *tagList, fullFile string, signatures *common.FileSignatures) (err error) {
+	// Use pipe to parallel read body and create signature
+	buf, bufW := io.Pipe()
+	errCh := make(chan error, 1)
+	go func() {
+		reader := io.TeeReader(archive.TarReader, bufW)
+		// If file: persist, if image: import
+		if strings.HasPrefix(h.Name, shared.ContainerImagePrefix) {
+			var tag name.Tag
+			tag, err = name.NewTag(strings.TrimPrefix(h.Name, shared.ContainerImagePrefix+"/"))
+			if err != nil {
+				errCh <- err
+			}
+			// If everything matches, reimport images if target registry has been provided
+			var wasImported bool
+			wasImported, err = common.ImportImage(io.NopCloser(reader), &tag)
+			if wasImported {
+				*unsafeTags = append(*unsafeTags, &tag)
+			}
+			if err != nil {
+				errCh <- err
+			}
+		} else {
+			f, err := os.Create(fullFile)
+			if err != nil {
+				errCh <- err
+			}
+			if bts, err := io.Copy(f, reader); err != nil {
+				log.Errorf("unseal: EOF after %d bytes of %d\n", bts, h.Size)
+				errCh <- err
+			}
+			if err = f.Sync(); err != nil {
+				errCh <- err
+			}
+			if err = f.Close(); err != nil {
+				errCh <- err
+			}
+		}
+		defer func() {
+			errCh <- bufW.Close()
+		}()
+	}()
+	if err = signatures.AddFileFromReader(h.Name, buf); err != nil {
+		return
+	}
+	err = <-errCh
+	return
 }
 
 // check tests if an error is nil; if not, it logs the error and exits the program

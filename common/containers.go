@@ -18,8 +18,13 @@ import (
 	"context"
 	"fmt"
 	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/google/go-containerregistry/pkg/crane"
+	"github.com/google/go-containerregistry/pkg/name"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/tarball"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -105,72 +110,98 @@ func ParseContainerImage(name string) *shared.ContainerImage {
 	}
 }
 
-// ImportImages loads all images from the default folder and imports them.
-// After importing, the images are being deleted.
-func ImportImages() error {
-	pathPrefix := filepath.Join(Unseal.OutputPath, shared.ContainerImagePrefix)
-	if err := filepath.Walk(pathPrefix, func(image string, info fs.FileInfo, err error) error {
-		if !info.IsDir() && strings.HasSuffix(info.Name(), shared.OCISuffix) {
-			if err = ImportImage(image, ParseContainerImage(strings.TrimPrefix(image, pathPrefix))); err != nil {
-				return err
-			}
-			if err = os.Remove(image); err != nil {
-				return err
-			}
-		}
-		return err
-	}); err != nil {
-		return err
+func getContainerDClient() (client *containerd.Client, ctx context.Context, err error) {
+	var sock string
+	var nsList []string
+	sock, err = GetContainerDSocket()
+	if err != nil {
+		return
 	}
-	return os.RemoveAll(pathPrefix)
+	if _, err = os.Stat(sock); os.IsNotExist(err) || os.IsPermission(err) {
+		return
+	}
+	client, err = containerd.New(sock)
+	if err != nil {
+		return
+	}
+	nsList, err = client.NamespaceService().List(context.Background())
+	if err != nil {
+		return
+	}
+	if !contains(nsList, Unseal.Namespace) {
+		err = fmt.Errorf("invalid namespace")
+		return
+	}
+	ctx = namespaces.WithNamespace(context.Background(), Unseal.Namespace)
+	return
 }
 
 // ImportImage imports one OCI image into a local containerd storage or a provided registry.
-func ImportImage(ociPath string, img *shared.ContainerImage) error {
+func ImportImage(tarReader io.ReadCloser, tag *name.Tag) (newImport bool, err error) {
 	switch Unseal.TargetRegistry {
 	case LocalRegistry:
-		sock, err := GetContainerDSocket()
+		var client *containerd.Client
+		var ctx context.Context
+		var oldImg containerd.Image
+		var newImg []images.Image
+		client, ctx, err = getContainerDClient()
 		if err != nil {
-			return err
+			return
 		}
-		if _, err = os.Stat(sock); os.IsNotExist(err) || os.IsPermission(err) {
-			return err
-		}
-		client, err := containerd.New(sock)
+		oldImg, _ = client.GetImage(ctx, tag.Name())
+		newImg, err = client.Import(ctx, tarReader)
 		if err != nil {
-			return err
+			return
 		}
-		nsList, err := client.NamespaceService().List(context.Background())
-		if err != nil {
-			return err
+		if oldImg != nil && oldImg.Target().Digest != newImg[0].Target.Digest {
+			newImport = true
 		}
-		if !contains(nsList, Unseal.Namespace) {
-			return fmt.Errorf("invalid namespace")
-		}
-		tarStream, err := os.Open(ociPath)
-		if err != nil {
-			return err
-		}
-		_, err = client.Import(namespaces.WithNamespace(context.Background(), Unseal.Namespace), tarStream)
-		if err != nil {
-			return err
-		}
-		if err = tarStream.Close(); err != nil {
-			return err
-		}
-		if err = client.Close(); err != nil {
-			return err
-		}
+		err = client.Close()
 		break
 	default:
-		img.Registry = Unseal.TargetRegistry
-		image, err := crane.Load(ociPath)
+		var img v1.Image
+		var digBefore v1.Hash
+		var digAfter string
+		tag.Repository, err = name.NewRepository(Unseal.TargetRegistry)
 		if err != nil {
-			return err
+			return
 		}
-		return crane.Push(image, img.String())
+		img, err = tarball.Image(func() (io.ReadCloser, error) {
+			return tarReader, nil
+		}, tag)
+		if err != nil {
+			return
+		}
+		digBefore, err = img.Digest()
+		err = crane.Push(img, tag.Name())
+		if err != nil {
+			return
+		}
+		digAfter, err = crane.Digest(tag.Name())
+		if digBefore.String() != digAfter {
+			newImport = true
+		}
+		return
 	}
-	return nil
+	return
+}
+
+func RemoveAll(tags []*name.Tag) (err error) {
+	for _, tag := range tags {
+		switch Unseal.TargetRegistry {
+		case LocalRegistry:
+			var client *containerd.Client
+			var ctx context.Context
+			client, ctx, err = getContainerDClient()
+			if err != nil {
+				return
+			}
+			return client.ImageService().Delete(ctx, tag.Name())
+		default:
+			return crane.Delete(tag.Name())
+		}
+	}
+	return
 }
 
 // contains is designed as generic slice contents search function
