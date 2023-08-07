@@ -26,7 +26,7 @@ var smSession *secretsmanager.SecretsManager
 // verifyEcrSession test if session is available and if not, create a new one.
 func verifySmSession() {
 	verifyAwsSession()
-	if ecrSession == nil {
+	if smSession == nil {
 		smSession = secretsmanager.New(sess)
 	}
 }

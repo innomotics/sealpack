@@ -17,7 +17,6 @@ package common
 import (
 	"github.com/sigstore/sigstore/pkg/signature"
 	"sealpack/aws"
-	"sealpack/shared"
 	"strings"
 )
 
@@ -31,7 +30,7 @@ type SealConfig struct {
 	HashingAlgorithm     string
 	Files                []string
 	ImageNames           []string
-	Images               []*shared.ContainerImage
+	Images               []*ContainerImage
 	Output               string
 }
 
@@ -67,5 +66,5 @@ func CreateSigner() (signature.Signer, error) {
 		return createKmsSigner(Seal.PrivKeyPath)
 	}
 	// TODO: other potential signing modules
-	return shared.CreatePKISigner(Seal.PrivKeyPath)
+	return CreatePKISigner(Seal.PrivKeyPath)
 }

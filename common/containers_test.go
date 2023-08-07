@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
-	"sealpack/shared"
 	"testing"
 )
 
@@ -53,5 +52,5 @@ func Test_FullParseContainerImage(t *testing.T) {
 	assert.Equal(t, "unit/group/project/someimage", result.Name)
 	assert.Equal(t, "sometag", result.Tag)
 	assert.Equal(t, input, result.String())
-	assert.Equal(t, filepath.Join(shared.ContainerImagePrefix, input+shared.OCISuffix), result.ToFileName())
+	assert.Equal(t, filepath.Join(ContainerImagePrefix, input+OCISuffix), result.ToFileName())
 }

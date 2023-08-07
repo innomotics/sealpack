@@ -19,7 +19,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sealpack/shared"
 	"strings"
 	"testing"
 )
@@ -95,7 +94,7 @@ func Test_ContainerImage(t *testing.T) {
 	ci := ParseContainerImage(image)
 	assert.Equal(t,
 		strings.Join(
-			[]string{shared.ContainerImagePrefix, ci.Registry, ci.Name + ":" + ci.Tag + shared.OCISuffix},
+			[]string{ContainerImagePrefix, ci.Registry, ci.Name + ":" + ci.Tag + OCISuffix},
 			"/",
 		),
 		ci.ToFileName(),

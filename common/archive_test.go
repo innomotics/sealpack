@@ -1,4 +1,4 @@
-package shared
+package common
 
 /*
  * Sealpack
@@ -99,7 +99,7 @@ func Test_Envelope(t *testing.T) {
 	assert.Contains(t, strs[0], "is a sealed package")
 	assert.Contains(t, strs[1], "0 Bytes")
 	assert.Contains(t, strs[2], "SHA-256 (32 Bit)")
-	assert.Contains(t, strs[3], "for 1 recievers")
+	assert.Contains(t, strs[3], "for 1 receivers")
 
 	// Test envelope byte slice
 	bts := envelope.ToBytes()

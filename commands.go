@@ -23,7 +23,6 @@ import (
 	"os"
 	"path/filepath"
 	"sealpack/common"
-	"sealpack/shared"
 	"strings"
 )
 
@@ -135,7 +134,7 @@ func readConfiguration(fileName string) error {
 	if err != nil {
 		return err
 	}
-	var contents shared.ArchiveContents
+	var contents common.ArchiveContents
 	switch strings.ToLower(filepath.Ext(fileName)) {
 	case ".json":
 		err = json.Unmarshal(data, &contents)
@@ -153,7 +152,7 @@ func readConfiguration(fileName string) error {
 		common.Seal.Files = contents.Files
 	}
 	if contents.Images != nil {
-		common.Seal.Images = make([]*shared.ContainerImage, len(contents.Images))
+		common.Seal.Images = make([]*common.ContainerImage, len(contents.Images))
 		for i := 0; i < len(contents.Images); i++ {
 			common.Seal.Images[i] = common.ParseContainerImage(contents.Images[i])
 		}

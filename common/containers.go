@@ -29,7 +29,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sealpack/shared"
 	"strings"
 )
 
@@ -65,7 +64,7 @@ func GetContainerDSocket() (string, error) {
 }
 
 // SaveImage with from a registry to a local OCI file.
-func SaveImage(img *shared.ContainerImage) (result *os.File, err error) {
+func SaveImage(img *ContainerImage) (result *os.File, err error) {
 	tmpdir := filepath.Join(os.TempDir(), TmpFolderName, img.ToFileName())
 	if err = os.MkdirAll(filepath.Dir(tmpdir), 0777); err != nil {
 		return nil, err
@@ -89,9 +88,10 @@ func CleanupImages() error {
 }
 
 // ParseContainerImage takes a string describing an image and parses the registry, name and tag out of it.
-func ParseContainerImage(name string) *shared.ContainerImage {
+func ParseContainerImage(name string) *ContainerImage {
 	name = strings.TrimPrefix(name, "/")
 	registry := DefaultRegistry
+	// Pattern tries to find a domain in the image name ('.'-separated string with '/' only at the end)
 	regPattern := regexp.MustCompile("^([^/]+(\\.[^/]+)+)/")
 	regDomain := regPattern.FindString(name)
 	if regDomain != "" {
@@ -99,17 +99,18 @@ func ParseContainerImage(name string) *shared.ContainerImage {
 		registry = name[:firstSlash]
 		name = name[firstSlash+1:]
 	}
-	imgParts := strings.Split(strings.TrimSuffix(name, shared.OCISuffix), ":")
+	imgParts := strings.Split(strings.TrimSuffix(name, OCISuffix), ":")
 	if len(imgParts) < 2 {
 		imgParts = append(imgParts, "latest")
 	}
-	return &shared.ContainerImage{
+	return &ContainerImage{
 		Registry: registry,
 		Name:     imgParts[0],
 		Tag:      imgParts[1],
 	}
 }
 
+// getContainerDClient creates a client for accessing a local containerD instance
 func getContainerDClient() (client *containerd.Client, ctx context.Context, err error) {
 	var sock string
 	var nsList []string
@@ -140,52 +141,63 @@ func getContainerDClient() (client *containerd.Client, ctx context.Context, err 
 func ImportImage(tarReader io.ReadCloser, tag *name.Tag) (newImport bool, err error) {
 	switch Unseal.TargetRegistry {
 	case LocalRegistry:
-		var client *containerd.Client
-		var ctx context.Context
-		var oldImg containerd.Image
-		var newImg []images.Image
-		client, ctx, err = getContainerDClient()
-		if err != nil {
-			return
-		}
-		oldImg, _ = client.GetImage(ctx, tag.Name())
-		newImg, err = client.Import(ctx, tarReader)
-		if err != nil {
-			return
-		}
-		if oldImg != nil && oldImg.Target().Digest != newImg[0].Target.Digest {
-			newImport = true
-		}
-		err = client.Close()
-		break
+		return importLocal(tarReader, tag)
 	default:
-		var img v1.Image
-		var digBefore v1.Hash
-		var digAfter string
-		tag.Repository, err = name.NewRepository(Unseal.TargetRegistry)
-		if err != nil {
-			return
-		}
-		img, err = tarball.Image(func() (io.ReadCloser, error) {
-			return tarReader, nil
-		}, tag)
-		if err != nil {
-			return
-		}
-		digBefore, err = img.Digest()
-		err = crane.Push(img, tag.Name())
-		if err != nil {
-			return
-		}
-		digAfter, err = crane.Digest(tag.Name())
-		if digBefore.String() != digAfter {
-			newImport = true
-		}
-		return
+		return importToRegistry(tarReader, tag)
 	}
 	return
 }
 
+// importLocal imports an image to a locally running containerd instance
+func importLocal(tarReader io.ReadCloser, tag *name.Tag) (newImport bool, err error) {
+	var client *containerd.Client
+	var ctx context.Context
+	var oldImg containerd.Image
+	var newImg []images.Image
+	client, ctx, err = getContainerDClient()
+	if err != nil {
+		return
+	}
+	oldImg, _ = client.GetImage(ctx, tag.Name())
+	newImg, err = client.Import(ctx, tarReader)
+	if err != nil {
+		return
+	}
+	if oldImg != nil && oldImg.Target().Digest != newImg[0].Target.Digest {
+		newImport = true
+	}
+	err = client.Close()
+	return
+}
+
+// importToRegistry imports a container image into a target registry
+func importToRegistry(tarReader io.ReadCloser, tag *name.Tag) (newImport bool, err error) {
+	var img v1.Image
+	var digBefore v1.Hash
+	var digAfter string
+	tag.Repository, err = name.NewRepository(Unseal.TargetRegistry)
+	if err != nil {
+		return
+	}
+	img, err = tarball.Image(func() (io.ReadCloser, error) {
+		return tarReader, nil
+	}, tag)
+	if err != nil {
+		return
+	}
+	digBefore, err = img.Digest()
+	err = crane.Push(img, tag.Name())
+	if err != nil {
+		return
+	}
+	digAfter, err = crane.Digest(tag.Name())
+	if digBefore.String() != digAfter {
+		newImport = true
+	}
+	return
+}
+
+// RemoveAll multiple images from a registry or containerD instance defined by slice
 func RemoveAll(tags []*name.Tag) (err error) {
 	for _, tag := range tags {
 		switch Unseal.TargetRegistry {
