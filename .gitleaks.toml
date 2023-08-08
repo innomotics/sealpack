@@ -16,3 +16,9 @@ useDefault = true
 # or you can supply a path to a configuration. Path is relative to where gitleaks
 # was invoked, not the location of the base config.
 # path = "common_config.toml"
+
+[allowlist]
+description = "Sonarqube uses a UUID-format for project key, so allowlist it"
+paths = [
+    '''sonar-project\.properties'''
+]
