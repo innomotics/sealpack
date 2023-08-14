@@ -28,6 +28,7 @@ type SealConfig struct {
 	Public               bool
 	Seal                 bool
 	HashingAlgorithm     string
+	CompressionAlgorithm string
 	Files                []string
 	ImageNames           []string
 	Images               []*ContainerImage
@@ -61,10 +62,10 @@ type Signer struct {
 	Signer *signature.SignerVerifier
 }
 
+// CreateSigner cheese the correct signature.Signer depending on the private key string
 func CreateSigner() (signature.Signer, error) {
 	if strings.HasPrefix(Seal.PrivKeyPath, "awskms:///") {
 		return createKmsSigner(Seal.PrivKeyPath)
 	}
-	// TODO: other potential signing modules
 	return CreatePKISigner(Seal.PrivKeyPath)
 }

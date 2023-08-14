@@ -28,7 +28,7 @@ import (
 
 func Test_CreateWriteFinalizeArchive(t *testing.T) {
 	// Create Archive creates buffer and writers
-	arc := CreateArchiveWriter(true)
+	arc := CreateArchiveWriter(true, 0)
 	assert.NotNil(t, arc.compressWriter)
 	assert.NotNil(t, arc.tarWriter)
 	assert.NotNil(t, arc.outFile)
@@ -51,7 +51,7 @@ func Test_CreateWriteFinalizeArchive(t *testing.T) {
 
 func Test_OpenArchive(t *testing.T) {
 	// Arrange
-	arc := CreateArchiveWriter(true)
+	arc := CreateArchiveWriter(true, 0)
 	assert.NoError(t, arc.AddToArchive("path/to/foo", []byte("Hold your breath and count to 10.")))
 	b, err := arc.Finalize()
 	assert.NoError(t, err)
@@ -62,7 +62,7 @@ func Test_OpenArchive(t *testing.T) {
 	assert.NoError(t, err)
 	data, err := io.ReadAll(f)
 	assert.NoError(t, err)
-	ra, err := OpenArchive(data)
+	ra, err := OpenArchive(data, 0)
 	assert.NoError(t, err)
 	assert.NotNil(t, ra.compressReader)
 	assert.NotNil(t, ra.TarReader)
@@ -77,7 +77,7 @@ func Test_OpenArchive(t *testing.T) {
 }
 
 func Test_OpenArchiveNoArchive(t *testing.T) {
-	ra, err := OpenArchive([]byte("This is not an archive!"))
+	ra, err := OpenArchive([]byte("This is not an archive!"), 0)
 	assert.ErrorContains(t, err, "invalid header")
 	assert.Nil(t, ra)
 }

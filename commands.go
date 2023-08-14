@@ -112,6 +112,7 @@ func ParseCommands() error {
 	sealCmd.Flags().StringSliceVarP(&common.Seal.Files, "file", "f", make([]string, 0), "Path to the files to be added")
 	sealCmd.Flags().StringSliceVarP(&common.Seal.ImageNames, "image", "i", make([]string, 0), "Name of container images to be added")
 	sealCmd.Flags().StringVarP(&common.Seal.HashingAlgorithm, "hashing-algorithm", "a", "SHA512", "Name of hashing algorithm to be used")
+	sealCmd.Flags().StringVarP(&common.Seal.CompressionAlgorithm, "compression-algorithm", "z", "gzip", "Name of compression algorithm to be used [gzip, zlib, zip, flate]")
 
 	rootCmd.AddCommand(inspectCmd)
 

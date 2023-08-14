@@ -91,17 +91,18 @@ Flags:
   -r, --recipient-pubkey strings   Paths of recipients' public keys
 ```
 
-| Flag              | Short | Type   | Multiple | Mandatory | Default | Description                                                                                                                         |
-|-------------------|-------|--------|----------|-----------|---------|-------------------------------------------------------------------------------------------------------------------------------------|
-| hashing-algorithm | a     | string | n        | n         | SHA512  | Name of algorithm to be used for signature hashing. Valid values must implement `crypto.Hash`.                                      |
-| contents          | c     | string | n        | n         | -       | Provide all contents as a central configurations file (supports (JSON)[#json-format], (YAML)[#yaml-format]).                        |
-| file              | f     | string | y        | n         | -       | Path to the files to be added to the package.                                                                                       |
-| help              | h     | -      | -        | -         | -       | Flag to display help message. Exits instantly.                                                                                      |
-| image             | i     | string | y        | n         | -       | Names of container images to be added. Full tag with registry can be provided, short forms will default to docker.io                |
-| output            | o     | string | n        | y         | -       | Filename to store the resulting sealed file in.                                                                                     |
-| privkey           | p     | string | n        | y         | -       | Path to the private signing key or AWS KMS keys can be used with `awskms:///` prefix. PEM-based PKCS1, PKCS8 and EC keys are valid. |
-| public            | -     | bool   | -        | n         | true    | Flag to not encrypt contents only sign files, so can be retrieved from any receiver.                                                |
-| recipient-pubkey  | r     | string | y        | n         | -       | Paths of recipients' public keys. PEM-based PKIX and PKCS8 keys are valid.                                                          |
+| Flag                  | Short | Type   | Multiple | Mandatory | Default | Description                                                                                                                         |
+|-----------------------|-------|--------|----------|-----------|---------|-------------------------------------------------------------------------------------------------------------------------------------|
+| hashing-algorithm     | a     | string | n        | n         | SHA512  | Name of algorithm to be used for signature hashing. Valid values must implement `crypto.Hash`.                                      |
+| contents              | c     | string | n        | n         | -       | Provide all contents as a central configurations file (supports (JSON)[#json-format], (YAML)[#yaml-format]).                        |
+| file                  | f     | string | y        | n         | -       | Path to the files to be added to the package.                                                                                       |
+| help                  | h     | -      | -        | -         | -       | Flag to display help message. Exits instantly.                                                                                      |
+| image                 | i     | string | y        | n         | -       | Names of container images to be added. Full tag with registry can be provided, short forms will default to docker.io                |
+| output                | o     | string | n        | y         | -       | Filename to store the resulting sealed file in.                                                                                     |
+| privkey               | p     | string | n        | y         | -       | Path to the private signing key or AWS KMS keys can be used with `awskms:///` prefix. PEM-based PKCS1, PKCS8 and EC keys are valid. |
+| public                | -     | bool   | -        | n         | true    | Flag to not encrypt contents only sign files, so can be retrieved from any receiver.                                                |
+| recipient-pubkey      | r     | string | y        | n         | -       | Paths of recipients' public keys. PEM-based PKIX and PKCS8 keys are valid.                                                          |
+| compression-algorithm | z     | string | n        | n         | gzip    | Name of compression algorithm to be used \[gzip, zlib, zip, flate\]                                                                 |
 
 #### JSON format
 The JSON format to define a list of contents, is kept very simple. The main object has 2 properties:
