@@ -18,12 +18,14 @@ import (
 	"archive/tar"
 	"bufio"
 	"bytes"
-	"compress/gzip"
 	"crypto"
 	"encoding/binary"
 	"fmt"
 	"github.com/apex/log"
 	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/klauspost/compress/flate"
+	"github.com/klauspost/compress/gzip"
+	"github.com/klauspost/compress/zlib"
 	"github.com/ovh/symmecrypt"
 	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/sigstore/sigstore/pkg/signature/options"
@@ -53,12 +55,16 @@ func ParseEnvelope(input io.ReadSeeker) (*Envelope, error) {
 	if _, err = rd.Discard(len(EnvelopeMagicBytes)); err != nil {
 		return nil, err
 	}
-	algoCode, err := rd.ReadByte()
+	// config Contains 2 infos (LSB)
+	// Bytes 7-5: Compression algorithm
+	// Bytes 4-0: Hash algorithm
+	config, err := rd.ReadByte()
 	if err != nil {
 		return nil, err
 	}
 	envel := &Envelope{
-		HashAlgorithm: crypto.Hash(algoCode),
+		HashAlgorithm:   crypto.Hash(config & 0b00011111),
+		CompressionAlgo: config >> 5,
 	}
 	payload := make([]byte, 8)
 	if _, err = rd.Read(payload); err != nil {
@@ -90,11 +96,12 @@ func ParseEnvelope(input io.ReadSeeker) (*Envelope, error) {
 
 // Envelope is the package with headers and so on
 type Envelope struct {
-	PayloadLen    int64
-	PayloadReader io.ReadSeeker
-	PayloadWriter *os.File
-	HashAlgorithm crypto.Hash
-	ReceiverKeys  [][]byte
+	PayloadLen      int64
+	PayloadReader   io.ReadSeeker
+	PayloadWriter   *os.File
+	HashAlgorithm   crypto.Hash
+	CompressionAlgo uint8
+	ReceiverKeys    [][]byte
 }
 
 // ToBytes provides an Envelope as Bytes.
@@ -103,7 +110,7 @@ func (e *Envelope) ToBytes() []byte {
 	// Add basic header information
 	result := append(
 		[]byte(EnvelopeMagicBytes),
-		byte(e.HashAlgorithm),
+		(e.CompressionAlgo<<5)|uint8(e.HashAlgorithm),
 	)
 	// Payload Length
 	payloadLen := make([]byte, 8)
@@ -125,7 +132,7 @@ func (e *Envelope) WriteHeader(w io.Writer) error {
 	if _, err := w.Write([]byte(EnvelopeMagicBytes)); err != nil {
 		return err
 	}
-	if _, err := w.Write([]byte{byte(e.HashAlgorithm)}); err != nil {
+	if _, err := w.Write([]byte{(e.CompressionAlgo << 5) | uint8(e.HashAlgorithm)}); err != nil {
 		return err
 	}
 	payloadLen := make([]byte, 8)
@@ -225,19 +232,51 @@ func (e *Envelope) GetPayload() (payload io.Reader, err error) {
  ****************/
 
 type WriteArchive struct {
-	encryptWriter  io.WriteCloser
-	compressWriter io.Writer
-	tarWriter      *tar.Writer
-	outFile        *os.File
-	EncryptionKey  string
+	encryptWriter   io.WriteCloser
+	compressWriter  io.WriteCloser
+	compressionAlgo uint8
+	tarWriter       *tar.Writer
+	outFile         *os.File
+	EncryptionKey   string
 }
 
-/**
- * TODO: Make compressWriter compression algorithm flexible
- */
+const (
+	CompressionGzip  = "gzip"
+	CompressionZlib  = "zlib"
+	CompressionZip   = "zip"
+	CompressionFlate = "flate"
+)
+
+// compressionAlgorithms as provided by https://github.com/klauspost/compress/
+var compressionAlgorithms = []string{
+	CompressionGzip,
+	CompressionZlib,
+	CompressionZip,
+	CompressionFlate,
+}
+
+// GetCompressionAlgoName gets the name of an algo index or defaults to gzip (0)
+func GetCompressionAlgoName(idx uint8) string {
+	if idx >= uint8(len(compressionAlgorithms)) {
+		log.Warnf("Invalid algorithm index '%d', defaulting to '%s'", idx, compressionAlgorithms[0])
+		idx = 0
+	}
+	return compressionAlgorithms[idx]
+}
+
+// GetCompressionAlgoIndex gets the index of an algo name or defaults to 0 (gzip)
+func GetCompressionAlgoIndex(algo string) uint8 {
+	for i, algoName := range compressionAlgorithms {
+		if algoName == algo {
+			return uint8(i)
+		}
+	}
+	log.Warnf("Invalid algorithm '%s', defaulting to '%s'", algo, compressionAlgorithms[0])
+	return 0
+}
 
 // CreateArchiveWriter opens a stream of writers (tar to gzip to buffer) and funnel to a csutom writer.
-func CreateArchiveWriter(public bool) *WriteArchive {
+func CreateArchiveWriter(public bool, compressionAlgo uint8) *WriteArchive {
 	f, err := os.CreateTemp("", "packed_contents")
 	if err != nil {
 		log.Fatal("could not create temp file")
@@ -247,9 +286,9 @@ func CreateArchiveWriter(public bool) *WriteArchive {
 	}
 	if !public {
 		arc.EncryptionKey, arc.encryptWriter = EncryptWriter(arc.outFile)
-		arc.compressWriter = gzip.NewWriter(arc.encryptWriter)
+		arc.InitializeCompression(arc.encryptWriter, compressionAlgo)
 	} else {
-		arc.compressWriter = gzip.NewWriter(arc.outFile)
+		arc.InitializeCompression(arc.outFile, compressionAlgo)
 	}
 	arc.tarWriter = tar.NewWriter(arc.compressWriter)
 	return arc
@@ -283,6 +322,7 @@ func (arc *WriteArchive) Finalize() (int64, error) {
 	return stat.Size(), nil
 }
 
+// Cleanup closes streams and removes temporary files
 func (arc *WriteArchive) Cleanup() error {
 	// Close if not already done
 	_ = arc.outFile.Close()
@@ -404,6 +444,25 @@ func (arc *WriteArchive) AddToc(signatures *FileSignatures) (err error) {
 	return
 }
 
+// InitializeCompression creates a compression writer based on selected algorithm
+func (arc *WriteArchive) InitializeCompression(w io.WriteCloser, compressionAlgo uint8) {
+	switch compressionAlgo {
+	case 1: // zlib
+		arc.compressWriter = zlib.NewWriter(w)
+		break
+	case 2: // zip
+		log.Warnf("ZIP writer currently not implemented")
+		arc.compressWriter = w
+		break
+	case 3: // flate
+		arc.compressWriter, _ = flate.NewWriter(w, flate.DefaultCompression)
+		break
+	default: // gzip
+		arc.compressWriter = gzip.NewWriter(w)
+		break
+	}
+}
+
 /***************
  * ReadArchive *
  ***************/
@@ -414,14 +473,12 @@ type ReadArchive struct {
 	reader         io.Reader
 }
 
-type tagList []*name.Tag
-
 // OpenArchive opens a compressed tar archive for reading
-func OpenArchive(data []byte) (arc *ReadArchive, err error) {
+func OpenArchive(data []byte, compressionAlgo uint8) (arc *ReadArchive, err error) {
 	arc = &ReadArchive{
 		reader: bytes.NewReader(data),
 	}
-	arc.compressReader, err = gzip.NewReader(arc.reader)
+	err = arc.InitializeCompression(arc.reader, compressionAlgo)
 	if err != nil {
 		return nil, err
 	}
@@ -430,11 +487,11 @@ func OpenArchive(data []byte) (arc *ReadArchive, err error) {
 }
 
 // OpenArchiveReader opens a compressed tar archive for reading from a reader
-func OpenArchiveReader(r io.Reader) (arc *ReadArchive, err error) {
+func OpenArchiveReader(r io.Reader, compressionAlgo uint8) (arc *ReadArchive, err error) {
 	arc = &ReadArchive{
 		reader: r,
 	}
-	arc.compressReader, err = gzip.NewReader(arc.reader)
+	err = arc.InitializeCompression(arc.reader, compressionAlgo)
 	if err != nil {
 		return nil, err
 	}
@@ -444,14 +501,11 @@ func OpenArchiveReader(r io.Reader) (arc *ReadArchive, err error) {
 
 func (arc *ReadArchive) Unpack() (err error) {
 	var h *tar.Header
-	var toc, tocSignature *bytes.Buffer
-	var unsafeTags tagList
 	log.Debug("unseal: create verifier")
-	verifier, err := CreatePKIVerifier(Unseal.SigningKeyPath)
+	verifier, err := NewVerifier()
 	if err != nil {
 		return err
 	}
-	signatures := NewSignatureList(Unseal.HashingAlgorithm)
 	for {
 		h, err = arc.TarReader.Next()
 		if err == io.EOF {
@@ -462,55 +516,34 @@ func (arc *ReadArchive) Unpack() (err error) {
 		}
 		switch h.Typeflag {
 		case tar.TypeReg:
-			fullFile := filepath.Join(Unseal.OutputPath, h.Name)
-			if !strings.HasPrefix(h.Name, ContainerImagePrefix) { // Skip creation of folder for images
-				if err = os.MkdirAll(filepath.Dir(fullFile), 0755); err != nil {
-					return fmt.Errorf("creating archive for %s failed: %s", fullFile, err.Error())
-				}
-			}
-			if !strings.HasPrefix(h.Name, TocFileName) {
-				err = arc.extractSingleFile(h, &unsafeTags, fullFile, signatures)
-				if err != nil {
-					return err
-				}
-			} else {
-				if h.Name == TocFileName {
-					toc = new(bytes.Buffer)
-					if _, err = io.Copy(toc, arc.TarReader); err != nil {
-						return err
-					}
-				} else {
-					tocSignature = new(bytes.Buffer)
-					if _, err = io.Copy(tocSignature, arc.TarReader); err != nil {
-						return err
-					}
-				}
+			if err = arc.extract(h, verifier); err != nil {
+				return err
 			}
 		default:
 			return fmt.Errorf("unknown type: %b in %s", h.Typeflag, h.Name)
 		}
 	}
 	log.Debug("unseal: verifying contents signature")
-	// Test if TOC matches collected signatures TOC amd then verify that the TOC signature matches the binary TOC
-	if bytes.Compare(toc.Bytes(), signatures.Bytes()) != 0 {
-		return fmt.Errorf("tocs not matching")
-	}
-	if err = verifier.VerifySignature(tocSignature, toc); err != nil {
-		// As streaming is done before checking the Signature, rollback all
-		// 1) Rollback Files
-		if errInner := os.RemoveAll(Unseal.OutputPath); errInner != nil {
-			log.Errorf("Could not rollback files: %s\n", err.Error())
-		}
-		// 2) Rollback Tags
-		if errInner := RemoveAll(unsafeTags); errInner != nil {
-			log.Errorf("Could not rollback images: %s\n", err.Error())
-		}
-		return err
-	}
-	return
+	return verifier.Verify()
 }
 
-func (arc *ReadArchive) extractSingleFile(h *tar.Header, unsafeTags *tagList, fullFile string, signatures *FileSignatures) (err error) {
+func (arc *ReadArchive) extract(h *tar.Header, v *Verifier) (err error) {
+	fullFile := filepath.Join(Unseal.OutputPath, h.Name)
+	if !strings.HasPrefix(h.Name, ContainerImagePrefix) { // Skip creation of folder for images
+		if err = os.MkdirAll(filepath.Dir(fullFile), 0755); err != nil {
+			return fmt.Errorf("creating archive for %s failed: %s", fullFile, err.Error())
+		}
+	}
+	if !strings.HasPrefix(h.Name, TocFileName) {
+		err = arc.extractContentFile(h, fullFile, v)
+	} else {
+		err = v.AddTocComponent(h, arc.TarReader)
+	}
+	return err
+}
+
+// extractContentFile reads a single file from sealed archive and stores as local file or container image
+func (arc *ReadArchive) extractContentFile(h *tar.Header, fullFile string, verify *Verifier) (err error) {
 	// Use pipe to parallel read body and create signature
 	buf, bufW := io.Pipe()
 	errCh := make(chan error, 1)
@@ -518,33 +551,12 @@ func (arc *ReadArchive) extractSingleFile(h *tar.Header, unsafeTags *tagList, fu
 		reader := io.TeeReader(arc.TarReader, bufW)
 		// If file: persist, if image: import
 		if strings.HasPrefix(h.Name, ContainerImagePrefix) {
-			var tag name.Tag
-			tag, err = name.NewTag(strings.TrimPrefix(h.Name, ContainerImagePrefix+"/"))
-			if err != nil {
-				errCh <- err
-			}
-			// If everything matches, reimport images if target registry has been provided
-			var wasImported bool
-			wasImported, err = ImportImage(io.NopCloser(reader), &tag)
-			if wasImported {
-				*unsafeTags = append(*unsafeTags, &tag)
-			}
+			err = arc.storeImage(h, reader, verify)
 			if err != nil {
 				errCh <- err
 			}
 		} else {
-			f, err := os.Create(fullFile)
-			if err != nil {
-				errCh <- err
-			}
-			if bts, err := io.Copy(f, reader); err != nil {
-				log.Errorf("unseal: EOF after %d bytes of %d\n", bts, h.Size)
-				errCh <- err
-			}
-			if err = f.Sync(); err != nil {
-				errCh <- err
-			}
-			if err = f.Close(); err != nil {
+			if err = arc.storeFile(h, reader, fullFile); err != nil {
 				errCh <- err
 			}
 		}
@@ -552,10 +564,64 @@ func (arc *ReadArchive) extractSingleFile(h *tar.Header, unsafeTags *tagList, fu
 			errCh <- bufW.Close()
 		}()
 	}()
-	if err = signatures.AddFileFromReader(h.Name, buf); err != nil {
+	if err = verify.Signatures.AddFileFromReader(h.Name, buf); err != nil {
 		return
 	}
 	err = <-errCh
+	return
+}
+
+// storeFile creates a file with a specified name and copies contents from a Reader to it
+func (arc *ReadArchive) storeFile(h *tar.Header, r io.Reader, fullFile string) (err error) {
+	f, err := os.Create(fullFile)
+	if err != nil {
+		return err
+	}
+	if bts, err := io.Copy(f, r); err != nil {
+		log.Errorf("unseal: EOF after %d bytes of %d\n", bts, h.Size)
+		return err
+	}
+	if err = f.Sync(); err != nil {
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// storeImage imports a binary image from a Reader into a registry specified by a Tag
+func (arc *ReadArchive) storeImage(h *tar.Header, r io.Reader, v *Verifier) (err error) {
+	var tag name.Tag
+	if tag, err = name.NewTag(strings.TrimPrefix(h.Name, ContainerImagePrefix+"/")); err != nil {
+		return err
+	}
+	// If everything matches, reimport images if target registry has been provided
+	var wasImported bool
+	if wasImported, err = ImportImage(io.NopCloser(r), &tag); wasImported {
+		v.AddUnsafeTag(&tag)
+		return nil
+	}
+	return err
+}
+
+// InitializeCompression creates a compression writer based on selected algorithm
+func (arc *ReadArchive) InitializeCompression(r io.Reader, compressionAlgo uint8) (err error) {
+	switch compressionAlgo {
+	case 1: // zlib
+		arc.compressReader, err = zlib.NewReader(r)
+		break
+	case 2: // zip
+		log.Warnf("ZIP writer currently not implemented")
+		arc.compressReader = r
+		break
+	case 3: // flate
+		arc.compressReader = flate.NewReader(r)
+		break
+	default: // gzip
+		arc.compressReader, err = gzip.NewReader(r)
+		break
+	}
 	return
 }
 

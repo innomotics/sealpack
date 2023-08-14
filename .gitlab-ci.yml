@@ -24,6 +24,8 @@ unit testing:
     - go run github.com/boumenot/gocover-cobertura < coverage.txt > coverage.xml
   coverage: '/coverage: \d+.\d+% of statements/'
   artifacts:
+    paths:
+      - coverage.txt
     reports:
       coverage_report:
         coverage_format: cobertura

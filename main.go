@@ -37,12 +37,13 @@ func sealCommand() error {
 	var err error
 	// 1. Create envelope for the resulting file
 	envelope := common.Envelope{
-		HashAlgorithm: common.GetHashAlgorithm(common.Seal.HashingAlgorithm),
+		HashAlgorithm:   common.GetHashAlgorithm(common.Seal.HashingAlgorithm),
+		CompressionAlgo: common.GetCompressionAlgoIndex(common.Seal.CompressionAlgorithm),
 	}
 
 	// 2. Prepare TARget (pun intended) and add files and signatures
 	log.Debug("seal: Bundling WriteArchive")
-	arc := common.CreateArchiveWriter(common.Seal.Public)
+	arc := common.CreateArchiveWriter(common.Seal.Public, envelope.CompressionAlgo)
 	signatures := common.NewSignatureList(common.Seal.HashingAlgorithm)
 	if err = arc.AddContents(signatures); err != nil {
 		return err
@@ -135,7 +136,7 @@ func unsealCommand() error {
 	if err != nil {
 		return err
 	}
-	archive, err := common.OpenArchiveReader(payload)
+	archive, err := common.OpenArchiveReader(payload, envelope.CompressionAlgo)
 	if err != nil {
 		return err
 	}
