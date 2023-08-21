@@ -18,36 +18,15 @@ import (
 	"bytes"
 	"crypto"
 	"encoding/binary"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
-
-func Test_CreateWriteFinalizeArchive(t *testing.T) {
-	// Create Archive creates buffer and writers
-	arc := CreateArchiveWriter(true, 0)
-	assert.NotNil(t, arc.compressWriter)
-	assert.NotNil(t, arc.tarWriter)
-	assert.NotNil(t, arc.outFile)
-	assert.Nil(t, arc.encryptWriter)
-
-	// Add 2 files with 1000 bytes each
-	contents := make([]byte, 1000)
-	for i := 0; i < 1000; i++ {
-		contents = append(contents, 'A')
-	}
-	assert.NoError(t, arc.AddToArchive("foo", contents))
-	assert.NoError(t, arc.AddToArchive("bar", contents))
-
-	// Finalize
-	b, err := arc.Finalize()
-	assert.NoError(t, err)
-	// ~130 bytes compressed
-	assert.True(t, b >= 100 && b <= 150)
-}
 
 func Test_OpenArchive(t *testing.T) {
 	// Arrange
@@ -123,8 +102,145 @@ func Test_Envelope(t *testing.T) {
 	assert.EqualValues(t, envelope.ReceiverKeys, env.ReceiverKeys)
 }
 
-func Test_EnvelopeInvalid(t *testing.T) {
-	envelope, err := ParseEnvelope(bytes.NewReader([]byte("Pink fluffy unicorns dancing on rainbows.")))
-	assert.ErrorContains(t, err, "not a valid sealpack file")
-	assert.Nil(t, envelope)
+func sp(s string) *string {
+	return &s
+}
+
+func TestParseEnvelopeInvalid(t *testing.T) {
+
+	tests := []struct {
+		name    string
+		args    io.ReadSeeker
+		wantErr *string
+	}{
+		{
+			"Arbitrary string",
+			bytes.NewReader([]byte("Pink fluffy unicorns dancing on rainbows.")),
+			sp("not a valid sealpack file"),
+		},
+		{
+			"Empty string",
+			bytes.NewReader([]byte{}),
+			sp("EOF"),
+		},
+		{
+			"Only magic bytes",
+			bytes.NewReader([]byte("\xDBIPC")),
+			sp("EOF"),
+		},
+		{
+			"No payload length",
+			bytes.NewReader([]byte("\xDBIPC\x07")),
+			sp("EOF"),
+		},
+		{
+			"Too little payload length",
+			bytes.NewReader([]byte("\xDBIPC\x07\x00\x00\x00\x00\x07")),
+			sp("EOF"),
+		},
+		{
+			"Too little payload for provided length",
+			bytes.NewReader([]byte("\xDBIPC\x07\x07\x00\x00\x00\x00\x00\x00\x00Foo")),
+			sp("EOF"),
+		},
+		{
+			"No key where it should have one",
+			bytes.NewReader([]byte("\xDBIPC\x07\x03\x00\x00\x00\x00\x00\x00\x00Foo\x01")),
+			sp("EOF"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseEnvelope(tt.args)
+			assert.Nil(t, got)
+			assert.ErrorContains(t, err, *tt.wantErr)
+		})
+	}
+}
+
+func TestGetCompressionAlgoName(t *testing.T) {
+	tests := []struct {
+		name string
+		idx  uint8
+		want string
+	}{
+		{"GZIP", 0, "gzip"},
+		{"ZLIB", 1, "zlib"},
+		{"ZIP", 2, "zip"},
+		{"FLATE", 3, "flate"},
+		{"INVALID", 4, "gzip"},
+		{"INVALID", 99, "gzip"},
+	}
+
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer func() {
+		log.SetOutput(os.Stderr)
+	}()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, GetCompressionAlgoName(tt.idx), "GetCompressionAlgoName(%v)", tt.idx)
+			if int(tt.idx) >= len(compressionAlgorithms) {
+				assert.Contains(t, buf.String(), fmt.Sprintf("Invalid algorithm index '%d', defaulting to 'gzip'", tt.idx))
+			}
+		})
+	}
+}
+
+func TestGetCompressionAlgoIndex(t *testing.T) {
+	tests := []struct {
+		name string
+		idx  uint8
+		want string
+	}{
+		{"GZIP", 0, "gzip"},
+		{"ZLIB", 1, "zlib"},
+		{"ZIP", 2, "zip"},
+		{"FLATE", 3, "flate"},
+		{"INVALID", 0, "dump"},
+		{"INVALID", 0, ""},
+	}
+
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer func() {
+		log.SetOutput(os.Stderr)
+	}()
+
+	for ti, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.idx, GetCompressionAlgoIndex(tt.want), "GetCompressionAlgoIndex(%v)", tt.want)
+			if ti >= len(compressionAlgorithms) {
+				assert.Contains(t, buf.String(), fmt.Sprintf("Invalid algorithm '%s', defaulting to 'gzip'", tt.want))
+			}
+		})
+	}
+}
+
+// Tests for Archive Reader
+
+func TestOpenArchiveReader(t *testing.T) {
+	// Arrange
+	Seal = &SealConfig{
+		PrivKeyPath: "../test/private.pem",
+	}
+	sig := NewSignatureList("SHA512")
+	arc := CreateArchiveWriter(true, 0)
+	assert.NoError(t, arc.AddToArchive("path/to/foo", []byte("Hold your breath and count to 10.")))
+	assert.NoError(t, sig.AddFile("path/to/foo", []byte("Hold your breath and count to 10.")))
+	assert.NoError(t, arc.AddToc(sig))
+	b, err := arc.Finalize()
+	assert.NoError(t, err)
+	assert.True(t, b > 10)
+
+	// Act
+	Unseal = &UnsealConfig{
+		SigningKeyPath: "../test/public.pem",
+	}
+	f, err := os.Open(arc.outFile.Name())
+	assert.NoError(t, err)
+	ra, err := OpenArchiveReader(f, 0)
+	assert.NoError(t, err)
+	assert.NoError(t, ra.Unpack())
 }

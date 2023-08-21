@@ -147,6 +147,9 @@ func (e *Envelope) WriteHeader(w io.Writer) error {
 func (e *Envelope) WriteKeys(w io.Writer) error {
 	// Finally, the receivers' keys prefixed with their digest sizes in bytes
 	for _, key := range e.ReceiverKeys {
+		if len(key)%8 != 0 {
+			return fmt.Errorf("invalid key length")
+		}
 		if _, err := w.Write([]byte{uint8(len(key) / 8)}); err != nil {
 			return err
 		}
@@ -360,6 +363,7 @@ func (arc *WriteArchive) AddToArchive(imgName string, contents []byte) error {
 	return BytesToTar(arc.tarWriter, &imgName, contents)
 }
 
+// AddContents adds first files, secondly images to the WriteArchive providing FileSignatures for verification
 func (arc *WriteArchive) AddContents(signatures *FileSignatures) (err error) {
 	err = arc.addFiles(signatures)
 	if err != nil {
@@ -369,6 +373,7 @@ func (arc *WriteArchive) AddContents(signatures *FileSignatures) (err error) {
 	return
 }
 
+// addImages adds images to the WriteArchive providing FileSignatures for verification
 func (arc *WriteArchive) addImages(signatures *FileSignatures) (err error) {
 	var inFile *os.File
 	for _, content := range Seal.Images {
@@ -382,6 +387,8 @@ func (arc *WriteArchive) addImages(signatures *FileSignatures) (err error) {
 	}
 	return
 }
+
+// addFiles adds files to the WriteArchive providing FileSignatures for verification
 func (arc *WriteArchive) addFiles(signatures *FileSignatures) (err error) {
 	var globs []string
 	var inFile *os.File
