@@ -53,10 +53,11 @@ func GetContainerDSocket() (string, error) {
 			}
 			if strings.HasSuffix(path, ContainerDSocketFile) && (info.Mode()&os.ModeSocket) > 0 {
 				ContainerDSocket = path
+				return io.EOF
 			}
 			return nil
 		})
-		if err != nil {
+		if err != nil && err != io.EOF {
 			return "", err
 		}
 	}
@@ -145,7 +146,6 @@ func ImportImage(tarReader io.ReadCloser, tag *name.Tag) (newImport bool, err er
 	default:
 		return importToRegistry(tarReader, tag)
 	}
-	return
 }
 
 // importLocal imports an image to a locally running containerd instance

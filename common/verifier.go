@@ -35,7 +35,7 @@ func NewVerifier() (*Verifier, error) {
 }
 
 // AddTocComponent adds a TOC or TOC-Signature from a tar reader
-func (v *Verifier) AddTocComponent(h *tar.Header, r *tar.Reader) (err error) {
+func (v *Verifier) AddTocComponent(h *tar.Header, r io.Reader) (err error) {
 	if h.Name == TocFileName {
 		v.toc = new(bytes.Buffer)
 		if _, err = io.Copy(v.toc, r); err != nil {
