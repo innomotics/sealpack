@@ -15,6 +15,8 @@ package common
  */
 
 import (
+	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
 	"github.com/ovh/symmecrypt"
@@ -35,7 +37,28 @@ func Test_LoadPublicKey(t *testing.T) {
 	pubKey, err := LoadPublicKey(pubKeyPath)
 	assert.Nil(t, err)
 	assert.NotNil(t, pubKey)
-	assert.Equal(t, 512, pubKey.Size()) // PubKey of 4096 RSA is 512 bytes
+	assert.Equal(t, 512, pubKey.(*rsa.PublicKey).Size()) // PubKey of 4096 RSA is 512 bytes
+}
+func Test_LoadPublicKeyECDSA(t *testing.T) {
+	pubKeyPath := filepath.Join(filepath.Clean("../test"), "ec-public.pem")
+	pubKey, err := LoadPublicKey(pubKeyPath)
+	assert.Nil(t, err)
+	assert.NotNil(t, pubKey)
+	assert.IsType(t, ed25519.PublicKey{}, pubKey) // ECDSA PrivateKey
+}
+func Test_LoadPublicKeyASN1(t *testing.T) {
+	pubKeyPath := filepath.Join(filepath.Clean("../test"), "asn1-public.pem")
+	pubKey, err := LoadPublicKey(pubKeyPath)
+	assert.Nil(t, err)
+	assert.NotNil(t, pubKey)
+	assert.IsType(t, &ecdsa.PublicKey{}, pubKey) // ECDSA PrivateKey
+}
+func Test_LoadPublicKeyPKCS1(t *testing.T) {
+	pubKeyPath := filepath.Join(filepath.Clean("../test"), "pkcs1-public.pem")
+	pubKey, err := LoadPublicKey(pubKeyPath)
+	assert.Nil(t, err)
+	assert.NotNil(t, pubKey)
+	assert.Equal(t, 128, pubKey.(*rsa.PublicKey).Size()) // PubKey of 4096 RSA is 512 bytes
 }
 func Test_LoadPublicKeyNotFound(t *testing.T) {
 	pubKeyPath := filepath.Join(filepath.Clean("../test"), "public.nonexistent")
@@ -53,7 +76,7 @@ func Test_LoadPublicKeyNotAKey(t *testing.T) {
 	assert.Nil(t, pubKey)
 	assert.NoError(t, os.Remove(pubKeyPath))
 }
-func Test_LoadPublicKeyIsPrvate(t *testing.T) {
+func Test_LoadPublicKeyIsPrivate(t *testing.T) {
 	pubKeyPath := filepath.Join(filepath.Clean("../test"), "private.pem")
 	pubKey, err := LoadPublicKey(pubKeyPath)
 	assert.NotNil(t, err)
@@ -70,6 +93,27 @@ func Test_LoadPrivateKey(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, privKey)
 	assert.Equal(t, 512, privKey.(*rsa.PrivateKey).Size()) // PrivateKey of 4096 RSA is 512 bytes
+}
+func Test_LoadPrivateKeyECDSA(t *testing.T) {
+	privateKeyPath := filepath.Join(filepath.Clean("../test"), "ec-private.pem")
+	privKey, err := LoadPrivateKey(privateKeyPath)
+	assert.Nil(t, err)
+	assert.NotNil(t, privKey)
+	assert.IsType(t, ed25519.PrivateKey{}, privKey) // ECDSA PrivateKey
+}
+func Test_LoadPrivateKeyASN1(t *testing.T) {
+	privateKeyPath := filepath.Join(filepath.Clean("../test"), "asn1-private.pem")
+	privKey, err := LoadPrivateKey(privateKeyPath)
+	assert.Nil(t, err)
+	assert.NotNil(t, privKey)
+	assert.IsType(t, &ecdsa.PrivateKey{}, privKey) // ECDSA PrivateKey
+}
+func Test_LoadPrivateKeyPKCS1(t *testing.T) {
+	privateKeyPath := filepath.Join(filepath.Clean("../test"), "pkcs1-private.pem")
+	privKey, err := LoadPrivateKey(privateKeyPath)
+	assert.Nil(t, err)
+	assert.NotNil(t, privKey)
+	assert.Equal(t, 128, privKey.(*rsa.PrivateKey).Size()) // PrivateKey of 4096 RSA is 512 bytes
 }
 func Test_LoadPrivateKeyNotFound(t *testing.T) {
 	privateKeyPath := filepath.Join(filepath.Clean("../test"), "private.nonexistent")
@@ -112,10 +156,10 @@ func Test_EncryptDecrypt(t *testing.T) {
 	// Encrypt Contents, then seal key ...
 	encrypted, symKey, err := Encrypt(contentsOriginal)
 	assert.NoError(t, err)
-	encKey, err := rsa.EncryptPKCS1v15(rand.Reader, pubKey, symKey)
+	encKey, err := rsa.EncryptPKCS1v15(rand.Reader, pubKey.(*rsa.PublicKey), symKey)
 	assert.NoError(t, err)
 	// ... aaaand directly decrypt back
-	keyDecrypted, err := TryUnsealKey(encKey, privKey)
+	keyDecrypted, err := TryUnsealKey(encKey, privKey.(*rsa.PrivateKey))
 	assert.NoError(t, err)
 	contentsDecrypted, err := keyDecrypted.Decrypt(encrypted)
 	assert.NoError(t, err)
@@ -132,6 +176,7 @@ func Test_DecryptInvalidContents(t *testing.T) {
 		enc[i] = 'x'
 	}
 	key, err := symmecrypt.NewKey(xchacha20poly1305.CipherName, string(keyBytes))
+	assert.NoError(t, err)
 	result, err := key.Decrypt(enc)
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "message authentication failed")
@@ -152,10 +197,11 @@ func Test_DecryptInvalidKey(t *testing.T) {
 		false,
 		time.Now(),
 	)
-	encKey, err := rsa.EncryptPKCS1v15(rand.Reader, pubKey, []byte(keyConfig.String()))
+	encKey, err := rsa.EncryptPKCS1v15(rand.Reader, pubKey.(*rsa.PublicKey), []byte(keyConfig.String()))
+	assert.NoError(t, err)
 
 	// Decryption
-	result, err := TryUnsealKey(encKey, privKey)
+	result, err := TryUnsealKey(encKey, privKey.(*rsa.PrivateKey))
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "unable to create AEAD key")
 
@@ -169,11 +215,15 @@ func Test_DecryptDamagedKey(t *testing.T) {
 	assert.Nil(t, err)
 	_, key, err := Encrypt([]byte("This is the end."))
 	assert.NoError(t, err)
-	enc, err := rsa.EncryptPKCS1v15(rand.Reader, pubKey, key)
+	enc, err := rsa.EncryptPKCS1v15(rand.Reader, pubKey.(*rsa.PublicKey), key)
 	assert.Nil(t, err)
 
 	// Decryption
-	result, err := TryUnsealKey(enc[:len(enc)-5], privKey)
+	result, err := TryUnsealKey(enc[:len(enc)-5], privKey.(*rsa.PrivateKey))
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "decryption error")
+}
+
+func Test_TryUnsealKeyEC(t *testing.T) {
+
 }

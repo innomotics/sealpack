@@ -17,6 +17,9 @@ unit testing:
     - openssl genrsa -out private1024.pem 1024 && openssl rsa -in private1024.pem -pubout -out public1024.pem
     - openssl genrsa -out private2048.pem 2048 && openssl rsa -in private2048.pem -pubout -out public2048.pem
     - openssl genrsa -out private.pem 4096 && openssl rsa -in private.pem -pubout -out public.pem
+    - openssl genrsa -traditional -out pkcs1-private.pem 1024 && openssl rsa -in pkcs1-private.pem -pubout -traditional -out pkcs1-public.pem
+    - openssl genpkey -algorithm ed25519 -out ec-private.pem && openssl ec -in ec-private.pem -pubout -out ec-public.pem
+    - openssl ecparam -name secp224r1 -genkey -noout -out asn1-private.pem && openssl ec -in asn1-private.pem -pubout -out asn1-public.pem
     - popd
     - go mod tidy
     - go test ./... -coverprofile=coverage.txt -covermode count

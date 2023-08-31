@@ -19,6 +19,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto"
+	"crypto/rsa"
 	"encoding/binary"
 	"fmt"
 	"github.com/apex/log"
@@ -209,14 +210,18 @@ func (e *Envelope) GetPayload() (payload io.Reader, err error) {
 	} else {
 		log.Infof("unseal: read archive sealed for %d receivers", len(e.ReceiverKeys))
 		// Try to find a key that can be decrypted with the provided private key
-		var pKey PrivateKey
+		var pKey interface{}
 		pKey, err = LoadPrivateKey(Unseal.PrivKeyPath)
 		if err != nil {
 			return
 		}
+		decryptionKey, ok := pKey.(*rsa.PrivateKey)
+		if !ok {
+			return nil, fmt.Errorf("could not use provided private key for decryption")
+		}
 		var symKey symmecrypt.Key
 		for _, key := range e.ReceiverKeys {
-			symKey, err = TryUnsealKey(key, pKey)
+			symKey, err = TryUnsealKey(key, decryptionKey)
 			if err == nil {
 				break
 			}
@@ -291,6 +296,7 @@ func CreateArchiveWriter(public bool, compressionAlgo uint8) *WriteArchive {
 		arc.EncryptionKey, arc.encryptWriter = EncryptWriter(arc.outFile)
 		arc.InitializeCompression(arc.encryptWriter, compressionAlgo)
 	} else {
+		log.Warn("The --public flag was set. Your contents will NOT BE ENCRYPTED. Please verify this is on purpose.")
 		arc.InitializeCompression(arc.outFile, compressionAlgo)
 	}
 	arc.tarWriter = tar.NewWriter(arc.compressWriter)

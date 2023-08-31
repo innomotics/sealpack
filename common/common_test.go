@@ -15,6 +15,7 @@ package common
  */
 
 import (
+	"crypto/rsa"
 	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/sigstore/sigstore/pkg/signature/kms/aws"
 	"github.com/stretchr/testify/assert"
@@ -36,7 +37,7 @@ func Test_CreateSigner(t *testing.T) {
 	assert.NotNil(t, sig)
 	pub, err := sig.PublicKey()
 	assert.Nil(t, err)
-	assert.Equal(t, privKey.Public(), pub) // PubKey of 4096 RSA is 512 bytes
+	assert.Equal(t, privKey.(*rsa.PrivateKey).Public(), pub) // PubKey of 4096 RSA is 512 bytes
 }
 func Test_CreateSignerAWS(t *testing.T) {
 	old := createKmsSigner

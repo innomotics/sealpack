@@ -15,6 +15,7 @@ package main
  */
 
 import (
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
@@ -53,6 +54,9 @@ func sealCommand() error {
 	// 3. Add TOC and sign it
 	log.Debug("seal: adding TOC")
 	err = arc.AddToc(signatures)
+	if err != nil {
+		return fmt.Errorf("seal: failed adding TOC: %v", err)
+	}
 	envelope.PayloadLen, err = arc.Finalize()
 	if err != nil {
 		return fmt.Errorf("seal: failed finalizing archive: %v", err)
@@ -61,8 +65,10 @@ func sealCommand() error {
 	// 4. Encrypt keys
 	log.Debugf("seal: encrypting %d keys", len(common.Seal.RecipientPubKeyPaths))
 	// Now create encryption key and seal them for all recipients
-	if err = addKeys(envelope, []byte(arc.EncryptionKey)); err != nil {
-		return err
+	if !common.Seal.Public {
+		if err = addKeys(envelope, []byte(arc.EncryptionKey)); err != nil {
+			return err
+		}
 	}
 
 	// 5. Write envelope
@@ -88,19 +94,21 @@ func sealCommand() error {
 func addKeys(envelope common.Envelope, plainKey []byte) error {
 	var err error
 	envelope.ReceiverKeys = [][]byte{}
-	if !common.Seal.Public {
-		envelope.ReceiverKeys = make([][]byte, len(common.Seal.RecipientPubKeyPaths))
-		for iKey, recipientPubKeyPath := range common.Seal.RecipientPubKeyPaths {
-			var recPubKey *rsa.PublicKey
-			if recPubKey, err = common.LoadPublicKey(recipientPubKeyPath); err != nil {
+	envelope.ReceiverKeys = make([][]byte, len(common.Seal.RecipientPubKeyPaths))
+	for iKey, recipientPubKeyPath := range common.Seal.RecipientPubKeyPaths {
+		var recPubKey crypto.PublicKey
+		if recPubKey, err = common.LoadPublicKey(recipientPubKeyPath); err != nil {
+			return err
+		}
+		if key, ok := recPubKey.(*rsa.PublicKey); ok {
+			if envelope.ReceiverKeys[iKey], err = rsa.EncryptPKCS1v15(rand.Reader, key, plainKey); err != nil {
 				return err
 			}
-			if envelope.ReceiverKeys[iKey], err = rsa.EncryptPKCS1v15(rand.Reader, recPubKey, plainKey); err != nil {
-				return err
+			if len(envelope.ReceiverKeys[iKey]) != key.Size() {
+				return fmt.Errorf("key size must be %d bits", key.Size())
 			}
-			if len(envelope.ReceiverKeys[iKey]) != recPubKey.Size() {
-				return fmt.Errorf("key size must be %d bits", recPubKey.Size())
-			}
+		} else {
+			return fmt.Errorf("encryption key %d cannot be used for encryption. Please provide a valid RSA public key", iKey+1)
 		}
 	}
 	return nil

@@ -82,6 +82,14 @@ func Test_FullParseContainerImage(t *testing.T) {
 	assert.Equal(t, filepath.Join(ContainerImagePrefix, input+OCISuffix), result.ToFileName())
 }
 
+func Test_ParseContainerImageMin(t *testing.T) {
+	input := "foo"
+	result := ParseContainerImage(input)
+	assert.Equal(t, "docker.io", result.Registry)
+	assert.Equal(t, "foo", result.Name)
+	assert.Equal(t, "latest", result.Tag)
+}
+
 func TestRemoveAll(t *testing.T) {
 	tagsList := tagList{}
 	for _, s := range []string{"cr.example.com/foobar:latest", "cr.example.com/foobar:v1", "cr.example.com/fnord:latest"} {
@@ -112,6 +120,72 @@ func TestRemoveAll(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			Unseal = &UnsealConfig{TargetRegistry: LocalRegistry}
 			tt.wantErr(t, RemoveAll(tt.tags), fmt.Sprintf("RemoveAll(%v)", tt.tags))
+		})
+	}
+}
+
+func Test_contains(t *testing.T) {
+	type args[Q comparable] struct {
+		haystack []Q
+		needle   Q
+	}
+	type testCase[Q comparable] struct {
+		name string
+		args args[Q]
+		want bool
+	}
+	tests := []testCase[string]{
+		{
+			name: "Simple found start",
+			args: args[string]{haystack: []string{"foo", "bar", "melon", "fnord"}, needle: "foo"},
+			want: true,
+		},
+		{
+			name: "Simple found end",
+			args: args[string]{haystack: []string{"foo", "bar", "melon", "fnord"}, needle: "fnord"},
+			want: true,
+		},
+		{
+			name: "Simple found middle",
+			args: args[string]{haystack: []string{"foo", "bar", "melon", "fnord"}, needle: "bar"},
+			want: true,
+		},
+		{
+			name: "Simple not found",
+			args: args[string]{haystack: []string{"foo", "bar", "melon", "fnord"}, needle: "mel0n"},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, contains(tt.args.haystack, tt.args.needle), "contains(%v, %v)", tt.args.haystack, tt.args.needle)
+		})
+	}
+	iTests := []testCase[int]{
+		{
+			name: "Simple found start",
+			args: args[int]{haystack: []int{42, 1337, -69, 0, 4711}, needle: 42},
+			want: true,
+		},
+		{
+			name: "Simple found end",
+			args: args[int]{haystack: []int{42, 1337, -69, 0, 4711}, needle: 4711},
+			want: true,
+		},
+		{
+			name: "Simple found middle",
+			args: args[int]{haystack: []int{42, 1337, -69, 0, 4711}, needle: -69},
+			want: true,
+		},
+		{
+			name: "Simple not found",
+			args: args[int]{haystack: []int{42, 1337, -69, 0, 4711}, needle: 127},
+			want: false,
+		},
+	}
+	for _, tt := range iTests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, contains(tt.args.haystack, tt.args.needle), "contains(%v, %v)", tt.args.haystack, tt.args.needle)
 		})
 	}
 }
