@@ -47,7 +47,7 @@ func WriteFileBytes(contents []byte) error {
 
 // NewOutputFile creates a new output file depending on the type of output target
 func NewOutputFile() (*os.File, error) {
-	if strings.HasPrefix(Seal.Output, aws.S3UriPrefix) {
+	if strings.HasPrefix(strings.ToLower(Seal.Output), aws.S3UriPrefix) {
 		return os.CreateTemp("", "")
 	}
 	if Seal.Output == "-" {
@@ -58,7 +58,7 @@ func NewOutputFile() (*os.File, error) {
 
 // CleanupFileWriter cleans up temporary files and performs post-finish operations
 func CleanupFileWriter(f *os.File) error {
-	if strings.HasPrefix(Seal.Output, aws.S3UriPrefix) {
+	if strings.HasPrefix(strings.ToLower(Seal.Output), aws.S3UriPrefix) {
 		tmp, err := os.Open(f.Name())
 		if err != nil {
 			return err

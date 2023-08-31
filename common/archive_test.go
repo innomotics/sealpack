@@ -19,6 +19,9 @@ import (
 	"crypto"
 	"encoding/binary"
 	"fmt"
+	"github.com/klauspost/compress/flate"
+	"github.com/klauspost/compress/gzip"
+	"github.com/klauspost/compress/zlib"
 	"github.com/stretchr/testify/assert"
 	"io"
 	"log"
@@ -243,4 +246,80 @@ func TestOpenArchiveReader(t *testing.T) {
 	ra, err := OpenArchiveReader(f, 0)
 	assert.NoError(t, err)
 	assert.NoError(t, ra.Unpack())
+}
+
+func TestReadArchive_InitializeCompression(t *testing.T) {
+	type args struct {
+		r               io.Reader
+		compressionAlgo uint8
+	}
+	gzFile, _ := os.CreateTemp("../test", "_*.gz")
+	defer os.Remove(gzFile.Name())
+	_, _ = gzip.NewWriter(gzFile).Write([]byte("FooBarTrololol"))
+	gzFile.Seek(0, 0)
+	zlibFile, _ := os.CreateTemp("../test", "_*.zlib")
+	defer os.Remove(zlibFile.Name())
+	_, _ = zlib.NewWriter(zlibFile).Write([]byte("FooBarTrololol"))
+	zlibFile.Seek(0, 0)
+	flateFile, _ := os.CreateTemp("../test", "_*.flate")
+	defer os.Remove(flateFile.Name())
+	w, _ := flate.NewWriter(flateFile, 0)
+	_, _ = w.Write([]byte("FooBarTrololol"))
+	flateFile.Seek(0, 0)
+	tests := []struct {
+		name    string
+		arc     *ReadArchive
+		args    args
+		wantErr assert.ErrorAssertionFunc
+	}{
+		{
+			name: "Test simple (gzip)",
+			arc: &ReadArchive{
+				reader: gzFile,
+			},
+			args: args{
+				r:               gzFile,
+				compressionAlgo: 0,
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "Test zlib",
+			arc: &ReadArchive{
+				reader: zlibFile,
+			},
+			args: args{
+				r:               zlibFile,
+				compressionAlgo: 1,
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "Test zip (defaults to gzip)",
+			arc: &ReadArchive{
+				reader: gzFile,
+			},
+			args: args{
+				r:               gzFile,
+				compressionAlgo: 2,
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "Test flate",
+			arc: &ReadArchive{
+				reader: flateFile,
+			},
+			args: args{
+				r:               flateFile,
+				compressionAlgo: 3,
+			},
+			wantErr: assert.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.wantErr(t, tt.arc.InitializeCompression(tt.args.r, tt.args.compressionAlgo), fmt.Sprintf("InitializeCompression(%v, %v)", tt.args.r, tt.args.compressionAlgo))
+		})
+	}
 }

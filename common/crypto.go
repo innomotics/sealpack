@@ -21,7 +21,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"github.com/ovh/symmecrypt"
 	"github.com/ovh/symmecrypt/ciphers/xchacha20poly1305"
 	"github.com/ovh/symmecrypt/keyloader"
@@ -31,14 +30,8 @@ import (
 	"time"
 )
 
-// PrivateKey is defined as any structure implementing crypto.Signer and crypto.Decrypter
-type PrivateKey interface {
-	crypto.Signer
-	crypto.Decrypter
-}
-
 // LoadPublicKey reads and parses a public key from a file
-func LoadPublicKey(path string) (*rsa.PublicKey, error) {
+func LoadPublicKey(path string) (crypto.PublicKey, error) {
 	keyBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -51,7 +44,7 @@ func LoadPublicKey(path string) (*rsa.PublicKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	return key.(*rsa.PublicKey), nil
+	return key.(crypto.PublicKey), nil
 }
 
 // parsePublicKey tries to parse the byte slice as PKCS1 and PKIX key and provides it back
@@ -64,7 +57,7 @@ func parsePublicKey(block []byte) (any, error) {
 }
 
 // LoadPrivateKey reads and parses a private key from a file
-func LoadPrivateKey(path string) (PrivateKey, error) {
+func LoadPrivateKey(path string) (interface{}, error) {
 	keyBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -77,21 +70,21 @@ func LoadPrivateKey(path string) (PrivateKey, error) {
 }
 
 // parsePrivateKey tries to parse the byte slice as PKCS1, PKCS8 and EC key and provides it back
-func parsePrivateKey(block []byte) (PrivateKey, error) {
+func parsePrivateKey(block []byte) (interface{}, error) {
 	var key any
 	key, err := x509.ParsePKCS1PrivateKey(block)
 	if err == nil {
-		return key.(PrivateKey), nil
+		return key, nil
 	}
 	key, err = x509.ParsePKCS8PrivateKey(block)
 	if err == nil {
-		return key.(PrivateKey), nil
+		return key, nil
 	}
 	key, err = x509.ParseECPrivateKey(block)
 	if err != nil {
 		return nil, err
 	}
-	return key.(PrivateKey), err
+	return key, err
 }
 
 // CreatePKISigner uses the private key to create a signature.Signer instance
@@ -143,11 +136,7 @@ func EncryptWriter(w io.Writer) (string, io.WriteCloser) {
 }
 
 // TryUnsealKey loads a key from JSON without configstore
-func TryUnsealKey(encrypted []byte, key PrivateKey) (symmecrypt.Key, error) {
-	rsaKey, ok := key.(*rsa.PrivateKey)
-	if !ok {
-		return nil, fmt.Errorf("ECDSA Keys cannot be used for decryption")
-	}
+func TryUnsealKey(encrypted []byte, rsaKey *rsa.PrivateKey) (symmecrypt.Key, error) {
 	keyBytes, err := rsa.DecryptPKCS1v15(rand.Reader, rsaKey, encrypted)
 	if err != nil {
 		return nil, err

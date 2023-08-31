@@ -207,3 +207,24 @@ func TestAddTocNoKey(t *testing.T) {
 	assert.NoError(t, arc.AddContents(sig))
 	assert.ErrorContains(t, arc.AddToc(sig), "seal: could not create signer: open ../test/foo.bar: no such file or directory")
 }
+
+// Test_WriteOutput only tests the successful default case
+func Test_WriteOutput(t *testing.T) {
+	// Create Archive creates buffer and writers
+	arc := CreateArchiveWriter(true, 0)
+	assert.NotNil(t, arc.compressWriter)
+	assert.NotNil(t, arc.tarWriter)
+	assert.NotNil(t, arc.outFile)
+	assert.Nil(t, arc.encryptWriter)
+
+	assert.NoError(t, arc.AddToArchive("foo", []byte("foo")))
+
+	envel := Envelope{
+		CompressionAlgo: 0,
+	}
+	f, err := os.OpenFile("../test/tmp.out", os.O_CREATE|os.O_RDWR, 0777)
+	defer os.Remove(f.Name())
+	assert.NoError(t, err)
+	assert.NoError(t, envel.WriteOutput(f, arc))
+	assert.FileExists(t, "../test/tmp.out")
+}

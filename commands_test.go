@@ -15,6 +15,7 @@ package main
  */
 
 import (
+	"github.com/apex/log"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
@@ -93,4 +94,76 @@ func Test_ReadConfigurationNonExisting(t *testing.T) {
 	common.Seal = &common.SealConfig{}
 	configFile := filepath.Join(os.TempDir(), "nonexisting.yaml")
 	assert.ErrorContains(t, readConfiguration(configFile), "no such file or directory")
+}
+
+func Test_ParseCommands(t *testing.T) {
+	testArgs := os.Args
+	os.Args = []string{"sealpack", "--help"}
+	assert.NoError(t, ParseCommands())
+	os.Args = testArgs
+}
+
+func Test_RootCmd_SetLogLevel(t *testing.T) {
+	tests := []struct {
+		name          string
+		logLevel      string
+		expectedError string
+		wants         int
+	}{
+		{"no log level provided", "", "invalid level", -1},
+		{"invalid log level provided", "foo", "invalid level", -1},
+		{"debug log level provided", "debug", "", 0},
+		{"Uppercase log level provided", "DEBUG", "", 0},
+		{"error log level provided", "ErRoR", "", 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logLevel = tt.logLevel
+			res := rootCmd.PersistentPreRunE(nil, []string{})
+			if tt.expectedError == "" {
+				assert.NoError(t, res)
+				assert.Equal(t, log.Level(tt.wants), log.Log.(*log.Logger).Level)
+			} else {
+				assert.ErrorContains(t, res, tt.expectedError)
+			}
+		})
+	}
+}
+
+func Test_SealCmd_PreRun(t *testing.T) {
+	configFile := filepath.Join(os.TempDir(), "content-config.json")
+	jsonConfig := []byte(`{"images":["alpine:latest","cr.example.com/foo/bar/fnord:3.14"],"files":["abc.txt","test.log","/var/log/syslog"]}`)
+	assert.NoError(t, os.WriteFile(configFile, jsonConfig, 0777))
+	defer os.Remove(configFile)
+	type args struct {
+		contents   string
+		imageNames []string
+		public     bool
+		pubKeys    []string
+	}
+	tests := []struct {
+		name          string
+		args          args
+		expectedError string
+		wants         int
+	}{
+		{"no input data", args{}, "", 3},
+		{"data per config", args{contents: configFile}, "", 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			common.Seal = &common.SealConfig{
+				ImageNames:           tt.args.imageNames,
+				Public:               tt.args.public,
+				RecipientPubKeyPaths: tt.args.pubKeys,
+			}
+			res := sealCmd.PreRunE(nil, []string{})
+			if tt.expectedError == "" {
+				assert.NoError(t, res)
+				assert.Equal(t, log.Level(tt.wants), log.Log.(*log.Logger).Level)
+			} else {
+				assert.ErrorContains(t, res, tt.expectedError)
+			}
+		})
+	}
 }

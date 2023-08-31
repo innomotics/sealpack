@@ -47,11 +47,10 @@ var (
 		Use:   "seal",
 		Short: "Create sealed archive",
 		Long:  "Create a sealed package",
-		Run: func(cmd *cobra.Command, args []string) {
+		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if contents != "" {
 				if err := readConfiguration(contents); err != nil {
-					log.Fatal("invalid configuration file provided")
-					return
+					return fmt.Errorf("invalid configuration file provided")
 				}
 			}
 			if len(common.Seal.ImageNames) > 0 {
@@ -61,9 +60,11 @@ var (
 			}
 			// public option cannot be used with receiver keys
 			if common.Seal.Public && len(common.Seal.RecipientPubKeyPaths) > 0 {
-				log.Fatal("Cannot use -public with -recipient-pubkey (illogical error)")
-				return
+				return fmt.Errorf("cannot use -public with -recipient-pubkey (illogical error)")
 			}
+			return nil
+		},
+		Run: func(cmd *cobra.Command, args []string) {
 			check(sealCommand())
 		},
 	}

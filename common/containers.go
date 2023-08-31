@@ -41,7 +41,9 @@ const (
 )
 
 var (
-	ContainerDSocket = ""
+	ContainerDSocket  = ""
+	containerDClient  *containerd.Client
+	containerDContext context.Context
 )
 
 // GetContainerDSocket searched for a containerD socket in the /run folder
@@ -112,30 +114,33 @@ func ParseContainerImage(name string) *ContainerImage {
 }
 
 // getContainerDClient creates a client for accessing a local containerD instance
-func getContainerDClient() (client *containerd.Client, ctx context.Context, err error) {
+func getContainerDClient() (*containerd.Client, context.Context, error) {
+	var err error
 	var sock string
 	var nsList []string
-	sock, err = GetContainerDSocket()
-	if err != nil {
-		return
+	if containerDContext == nil {
+		sock, err = GetContainerDSocket()
+		if err != nil {
+			return nil, nil, err
+		}
+		if _, err = os.Stat(sock); os.IsNotExist(err) || os.IsPermission(err) {
+			return nil, nil, err
+		}
+		containerDClient, err = containerd.New(sock)
+		if err != nil {
+			return nil, nil, err
+		}
+		nsList, err = containerDClient.NamespaceService().List(context.Background())
+		if err != nil {
+			return nil, nil, err
+		}
+		if !contains(nsList, Unseal.Namespace) {
+			err = fmt.Errorf("invalid namespace")
+			return nil, nil, err
+		}
+		containerDContext = namespaces.WithNamespace(context.Background(), Unseal.Namespace)
 	}
-	if _, err = os.Stat(sock); os.IsNotExist(err) || os.IsPermission(err) {
-		return
-	}
-	client, err = containerd.New(sock)
-	if err != nil {
-		return
-	}
-	nsList, err = client.NamespaceService().List(context.Background())
-	if err != nil {
-		return
-	}
-	if !contains(nsList, Unseal.Namespace) {
-		err = fmt.Errorf("invalid namespace")
-		return
-	}
-	ctx = namespaces.WithNamespace(context.Background(), Unseal.Namespace)
-	return
+	return containerDClient, containerDContext, nil
 }
 
 // ImportImage imports one OCI image into a local containerd storage or a provided registry.
@@ -150,13 +155,11 @@ func ImportImage(tarReader io.ReadCloser, tag *name.Tag) (newImport bool, err er
 
 // importLocal imports an image to a locally running containerd instance
 func importLocal(tarReader io.ReadCloser, tag *name.Tag) (newImport bool, err error) {
-	var client *containerd.Client
-	var ctx context.Context
 	var oldImg containerd.Image
 	var newImg []images.Image
-	client, ctx, err = getContainerDClient()
+	client, ctx, err := getContainerDClient()
 	if err != nil {
-		return
+		return false, err
 	}
 	oldImg, _ = client.GetImage(ctx, tag.Name())
 	newImg, err = client.Import(ctx, tarReader)
@@ -202,11 +205,9 @@ func RemoveAll(tags []*name.Tag) (err error) {
 	for _, tag := range tags {
 		switch Unseal.TargetRegistry {
 		case LocalRegistry:
-			var client *containerd.Client
-			var ctx context.Context
-			client, ctx, err = getContainerDClient()
+			client, ctx, err := getContainerDClient()
 			if err != nil {
-				return
+				return err
 			}
 			return client.ImageService().Delete(ctx, tag.Name())
 		default:
