@@ -3,7 +3,377 @@ Copyright 2023 Innomotics GmbH
 
 This product includes software developed at Innomotics (http://innomotics.com).
 
-This project was developed withing the IQEM project of Innomotics,
-before 2023 Siemens LDA (https://www.lda-portal.siemens.com/). All Rights Reserved.
+Open Source components used in this project:
 
-The initial developer of the project is Mathias Haimerl <mathias.haimerl@siemens.com>
+github.com/SSSaaS/sssa-golang; Version v0.0.0-20170502204618-d37d7782d752
+https://github.com/SSSaaS/sssa-golang
+Licenses:
+* MIT
+-----
+github.com/apex/log; Version v1.9.0
+https://github.com/apex/log
+Licenses:
+* MIT
+-----
+github.com/aws/aws-sdk-go; Version v1.45.0
+https://github.com/aws/aws-sdk-go
+Licenses:
+* Apache-2.0
+-----
+github.com/aws/aws-sdk-go-v2; Version v1.21.0
+https://github.com/aws/aws-sdk-go-v2
+Licenses:
+* Apache-2.0
+-----
+github.com/aws/aws-sdk-go-v2/config; Version v1.18.37
+https://github.com/aws/aws-sdk-go-v2/config
+Licenses:
+* Apache-2.0
+-----
+github.com/aws/aws-sdk-go-v2/credentials; Version v1.13.35
+https://github.com/aws/aws-sdk-go-v2/credentials
+Licenses:
+* Apache-2.0
+-----
+github.com/aws/aws-sdk-go-v2/feature/ec2/imds; Version v1.13.11
+https://github.com/aws/aws-sdk-go-v2/feature/ec2/imds
+Licenses:
+* Apache-2.0
+-----
+github.com/aws/aws-sdk-go-v2/internal/configsources; Version v1.1.41
+https://github.com/aws/aws-sdk-go-v2/internal/configsources
+Licenses:
+* Apache-2.0
+-----
+github.com/aws/aws-sdk-go-v2/internal/endpoints/v2; Version v2.4.35
+https://github.com/aws/aws-sdk-go-v2/internal/endpoints
+Licenses:
+* Apache-2.0
+-----
+github.com/aws/aws-sdk-go-v2/internal/ini; Version v1.3.42
+https://github.com/aws/aws-sdk-go-v2/internal/ini
+Licenses:
+* Apache-2.0
+-----
+github.com/aws/aws-sdk-go-v2/service/internal/presigned-url; Version v1.9.35
+https://github.com/aws/aws-sdk-go-v2/service/internal/presigned-url
+Licenses:
+* Apache-2.0
+-----
+github.com/aws/aws-sdk-go-v2/service/kms; Version v1.24.5
+https://github.com/aws/aws-sdk-go-v2/service/kms
+Licenses:
+* Apache-2.0
+-----
+github.com/aws/aws-sdk-go-v2/service/sso; Version v1.13.5
+https://github.com/aws/aws-sdk-go-v2/service/sso
+Licenses:
+* Apache-2.0
+-----
+github.com/aws/aws-sdk-go-v2/service/ssooidc; Version v1.15.5
+https://github.com/aws/aws-sdk-go-v2/service/ssooidc
+Licenses:
+* Apache-2.0
+-----
+github.com/aws/aws-sdk-go-v2/service/sts; Version v1.21.5
+https://github.com/aws/aws-sdk-go-v2/service/sts
+Licenses:
+* Apache-2.0
+-----
+github.com/aws/smithy-go; Version v1.14.2
+https://github.com/aws/smithy-go
+Licenses:
+* Apache-2.0
+-----
+github.com/containerd/containerd; Version v1.7.5
+https://github.com/containerd/containerd
+Licenses:
+* Apache-2.0
+-----
+github.com/containerd/continuity; Version v0.4.2
+https://github.com/containerd/continuity
+Licenses:
+* Apache-2.0
+-----
+github.com/containerd/fifo; Version v1.1.0
+https://github.com/containerd/fifo
+Licenses:
+* Apache-2.0
+-----
+github.com/containerd/stargz-snapshotter/estargz; Version v0.14.3
+https://github.com/containerd/stargz-snapshotter/estargz
+Licenses:
+* Apache-2.0
+-----
+github.com/containerd/ttrpc; Version v1.2.2
+https://github.com/containerd/ttrpc
+Licenses:
+* Apache-2.0
+-----
+github.com/containerd/typeurl/v2; Version v2.1.1
+https://github.com/containerd/typeurl
+Licenses:
+* Apache-2.0
+-----
+github.com/docker/cli; Version v24.0.5+incompatible
+https://github.com/docker/cli
+Licenses:
+* Apache-2.0
+-----
+github.com/docker/distribution; Version v2.8.2+incompatible
+https://github.com/docker/distribution
+Licenses:
+* Apache-2.0
+-----
+github.com/docker/docker; Version v24.0.5+incompatible
+https://github.com/docker/docker
+Licenses:
+* Apache-2.0
+-----
+github.com/docker/docker-credential-helpers; Version v0.8.0
+https://github.com/docker/docker-credential-helpers
+Licenses:
+* MIT
+-----
+github.com/docker/go-events; Version v0.0.0-20190806004212-e31b211e4f1c
+https://github.com/docker/go-events
+Licenses:
+* Apache-2.0
+-----
+github.com/fsnotify/fsnotify; Version v1.6.0
+https://github.com/fsnotify/fsnotify
+Licenses:
+* BSD-3-Clause
+-----
+github.com/ghodss/yaml; Version v1.0.0
+https://github.com/ghodss/yaml
+Licenses:
+* MIT
+-----
+github.com/go-logr/logr; Version v1.2.4
+https://github.com/go-logr/logr
+Licenses:
+* Apache-2.0
+-----
+github.com/go-logr/stdr; Version v1.2.2
+https://github.com/go-logr/stdr
+Licenses:
+* Apache-2.0
+-----
+github.com/gogo/protobuf; Version v1.3.2
+https://github.com/gogo/protobuf
+Licenses:
+* 0BSD
+-----
+github.com/golang/protobuf; Version v1.5.3
+https://github.com/golang/protobuf
+Licenses:
+* BSD-3-Clause
+-----
+github.com/google/go-cmp; Version v0.5.9
+https://github.com/google/go-cmp
+Licenses:
+* BSD-3-Clause
+-----
+github.com/google/go-containerregistry; Version v0.16.1
+https://github.com/google/go-containerregistry
+Licenses:
+* Apache-2.0
+-----
+github.com/google/uuid; Version v1.3.1
+https://github.com/google/uuid
+Licenses:
+* BSD-3-Clause
+-----
+github.com/jellydator/ttlcache/v3; Version v3.1.0
+https://github.com/jellydator/ttlcache
+Licenses:
+* MIT
+-----
+github.com/jmespath/go-jmespath; Version v0.4.0
+https://github.com/jmespath/go-jmespath
+Licenses:
+* Apache-2.0
+-----
+github.com/klauspost/compress; Version v1.16.7
+https://github.com/klauspost/compress
+Licenses:
+* Apache-2.0
+-----
+github.com/letsencrypt/boulder; Version v0.0.0-20221109233200-85aa52084eaf
+https://github.com/letsencrypt/boulder
+Licenses:
+* MPL-2.0
+-----
+github.com/miscreant/miscreant.go; Version v0.0.0-20200214223636-26d376326b75
+https://github.com/miscreant/miscreant.go
+Licenses:
+* MIT
+-----
+github.com/mitchellh/go-homedir; Version v1.1.0
+https://github.com/mitchellh/go-homedir
+Licenses:
+* MIT
+-----
+github.com/moby/locker; Version v1.0.1
+https://github.com/moby/locker
+Licenses:
+* Apache-2.0
+-----
+github.com/moby/sys/mountinfo; Version v0.6.2
+https://github.com/moby/sys/mountinfo
+Licenses:
+* Apache-2.0
+-----
+github.com/moby/sys/signal; Version v0.7.0
+https://github.com/moby/sys/signal
+Licenses:
+* Apache-2.0
+-----
+github.com/opencontainers/go-digest; Version v1.0.0
+https://github.com/opencontainers/go-digest
+Licenses:
+* CC-BY-SA-4.0
+-----
+github.com/opencontainers/image-spec; Version v1.1.0-rc4
+https://github.com/opencontainers/image-spec
+Licenses:
+* Apache-2.0
+-----
+github.com/opencontainers/runc; Version v1.1.9
+https://github.com/opencontainers/runc
+Licenses:
+* Apache-2.0
+-----
+github.com/opencontainers/runtime-spec; Version v1.1.0
+https://github.com/opencontainers/runtime-spec
+Licenses:
+* Apache-2.0
+-----
+github.com/opencontainers/selinux; Version v1.11.0
+https://github.com/opencontainers/selinux
+Licenses:
+* Apache-2.0
+-----
+github.com/ovh/configstore; Version v0.6.2
+https://github.com/ovh/configstore
+Licenses:
+* BSD-3-Clause
+-----
+github.com/ovh/symmecrypt; Version v0.6.0
+https://github.com/ovh/symmecrypt
+Licenses:
+* BSD-3-Clause
+-----
+github.com/pkg/errors; Version v0.9.1
+https://github.com/pkg/errors
+Licenses:
+* BSD-2-Clause
+-----
+github.com/sigstore/sigstore; Version v1.7.2
+https://github.com/sigstore/sigstore
+Licenses:
+* Apache-2.0
+-----
+github.com/sigstore/sigstore/pkg/signature/kms/aws; Version v1.7.2
+https://github.com/sigstore/sigstore/pkg/signature/kms/aws
+Licenses:
+* Apache-2.0
+-----
+github.com/sirupsen/logrus; Version v1.9.3
+https://github.com/sirupsen/logrus
+Licenses:
+* MIT
+-----
+github.com/spf13/cobra; Version v1.7.0
+https://github.com/spf13/cobra
+Licenses:
+* Apache-2.0
+-----
+github.com/spf13/pflag; Version v1.0.5
+https://github.com/spf13/pflag
+Licenses:
+* BSD-3-Clause
+-----
+github.com/theupdateframework/go-tuf; Version v0.5.2
+https://github.com/theupdateframework/go-tuf
+Licenses:
+* BSD-3-Clause
+-----
+github.com/titanous/rocacheck; Version v0.0.0-20171023193734-afe73141d399
+https://github.com/titanous/rocacheck
+Licenses:
+* MIT
+-----
+github.com/vbatts/tar-split; Version v0.11.5
+https://github.com/vbatts/tar-split
+Licenses:
+* BSD-3-Clause
+-----
+go.opentelemetry.io/otel; Version v1.17.0
+Licenses:
+* Apache-2.0
+-----
+go.opentelemetry.io/otel/metric; Version v1.17.0
+Licenses:
+* Apache-2.0
+-----
+go.opentelemetry.io/otel/trace; Version v1.17.0
+Licenses:
+* Apache-2.0
+-----
+golang.org/x/crypto; Version v0.12.0
+Licenses:
+* BSD-3-Clause
+-----
+golang.org/x/net; Version v0.14.0
+Licenses:
+* BSD-3-Clause
+-----
+golang.org/x/sync; Version v0.3.0
+Licenses:
+* BSD-3-Clause
+-----
+golang.org/x/sys; Version v0.11.0
+Licenses:
+* BSD-3-Clause
+-----
+golang.org/x/term; Version v0.11.0
+Licenses:
+* BSD-3-Clause
+-----
+golang.org/x/text; Version v0.12.0
+Licenses:
+* BSD-3-Clause
+-----
+google.golang.org/genproto; Version v0.0.0-20230822172742-b8732ec3820d
+Licenses:
+* Apache-2.0
+-----
+google.golang.org/genproto/googleapis/rpc; Version v0.0.0-20230822172742-b8732ec3820d
+Licenses:
+* Apache-2.0
+-----
+google.golang.org/grpc; Version v1.57.0
+Licenses:
+* Apache-2.0
+-----
+google.golang.org/protobuf; Version v1.31.0
+Licenses:
+* BSD-3-Clause
+-----
+gopkg.in/square/go-jose.v2; Version v2.6.0
+https://github.com/square/go-jose
+Licenses:
+* Apache-2.0
+-----
+gopkg.in/yaml.v2; Version v2.4.0
+https://github.com/go-yaml/yaml
+Licenses:
+* Apache-2.0
+-----
+gopkg.in/yaml.v3; Version v3.0.1
+https://github.com/go-yaml/yaml
+Licenses:
+* Apache-2.0
+-----
