@@ -60,4 +60,4 @@ jobs:
       - name: Perform Gitleaks scan
         uses: gitleaks/gitleaks-action@v2
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITLEAKS_KEY }}
