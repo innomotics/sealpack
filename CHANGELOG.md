@@ -2,7 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
-### 1.0.1 (2023-05-08)
+## 1.3.0 (2023-11-02)
+
+### Features
+
+* can now use elliptic curves for signing
+* images are now streamed without memory caching
+
+### Bug Fixes
+
+* updated dependencies due to several upstream vulnerabilities
+* several code quality changes
+* several code security changes
+
+## 1.0.1 (2023-05-08)
 
 ### Bug Fixes
 
