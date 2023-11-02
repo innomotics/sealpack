@@ -42,6 +42,7 @@ var (
 			return err
 		},
 	}
+
 	// sealCmd describes the `trigger` subcommand as cobra.Command
 	sealCmd = &cobra.Command{
 		Use:   "seal",

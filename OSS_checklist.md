@@ -21,7 +21,7 @@ URL of repository to be pushed (should be accessible for internal review): https
 
 ## Approval
 
-* [ ] Your organization [agrees on making this component *Open Source*](https://wiki.siemens.com/x/E6n-Bg) and an approval email is attached to this Merge Request. (This includes a mandatory check for IPR issues.)
+* [x] Your organization [agrees on making this component *Open Source*](https://wiki.siemens.com/x/E6n-Bg) and an approval email is attached to this Merge Request. (This includes a mandatory check for IPR issues.)
 * [x] The funding and staffing of the project is clarified for more than the current fiscal year. Some topics to consider:
     * Community interaction: reasonable response time assured (for issues, merge requests etc.)
     * Dependency management: consumed third-party libraries are kept up-to-date, especially with respect to security patches
