@@ -3,6 +3,10 @@ variables:
   http_proxy: ${CODE_PROXY}
   no_proxy: api.siemens.com,cr.siemens.com,code.siemens.com,devops.bt.siemens.com
   PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${CI_PROJECT_NAME}/${CI_COMMIT_REF_SLUG}"
+  SW360_PROJECT_ID: a96e1a7c86114de49901bb6a5c55be88
+  SW360_URL: ${SW360_URL_PROD}/api/projects/${SW360_PROJECT_ID}
+#  SW360_PROJECT_ID: 9de730f4213d4a1db0b4f864165825fc
+#  SW360_URL: ${SW360_URL_PROD}/api/projects/${SW360_PROJECT_ID}
 
 stages:
   - test
@@ -52,12 +56,13 @@ analyze:sonar:
 
 SBOM creation:
   stage: test
-  image: golang:1.19
+  image: cr.siemens.com/sbom/scanners/go-scanner:v1
   variables:
     SBOM_FILE: ${CI_PROJECT_NAME}-sbom.json
   script:
-    - go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@latest
-    - cyclonedx-gomod app -json=true -licenses=true -output ${SBOM_FILE}
+    - cyclonedx-gomod app -assert-licenses -json -licenses -output plain-sbom.json .
+    - /add-tools-entry.sh plain-sbom.json temp-sbom.json
+    - /add-sources.sh temp-sbom.json ${SBOM_FILE}
   artifacts:
     reports:
       cyclonedx:
