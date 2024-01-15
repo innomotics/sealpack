@@ -3,8 +3,10 @@ variables:
   http_proxy: ${CODE_PROXY}
   no_proxy: api.siemens.com,cr.siemens.com,code.siemens.com,devops.bt.siemens.com
   PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${CI_PROJECT_NAME}/${CI_COMMIT_REF_SLUG}"
+  SBOM_FILE: ${CI_PROJECT_NAME}-sbom.json
   SW360_PROJECT_ID: a96e1a7c86114de49901bb6a5c55be88
-  SW360_URL: ${SW360_URL_PROD}/api/projects/${SW360_PROJECT_ID}
+  SW360_URL: ${SW360_URL_STAGE}
+  STAGE_NAME: staging
 #  SW360_PROJECT_ID: 9de730f4213d4a1db0b4f864165825fc
 #  SW360_URL: ${SW360_URL_PROD}/api/projects/${SW360_PROJECT_ID}
 
@@ -57,13 +59,15 @@ analyze:sonar:
 SBOM creation:
   stage: test
   image: cr.siemens.com/sbom/scanners/go-scanner:v1
-  variables:
-    SBOM_FILE: ${CI_PROJECT_NAME}-sbom.json
   script:
+    - go mod tidy
     - cyclonedx-gomod app -assert-licenses -json -licenses -output plain-sbom.json .
     - /add-tools-entry.sh plain-sbom.json temp-sbom.json
-    - /add-sources.sh temp-sbom.json ${SBOM_FILE}
+    - jq '.metadata.properties[.metadata.properties| length] |= . + {"name":"siemens:profile","value":"clearing"}' temp-sbom.json > temp2-sbom.json
+    - /add-sources.sh temp2-sbom.json ${SBOM_FILE}
   artifacts:
+    paths:
+      - ${SBOM_FILE}
     reports:
       cyclonedx:
         - ${SBOM_FILE}
@@ -92,6 +96,14 @@ repolinter check:
     - gem install licensee
     - repolinter lint .
 
+SBOM validation:
+  stage: build
+  needs: ["SBOM creation"]
+  image: python:3.11-slim
+  script:
+    - pip install --index-url https://devops.bt.siemens.com/artifactory/api/pypi/pypi-all/simple standard-bom-validator
+    - standard-bom-validator -sbom "${SBOM_FILE}" -profile clearing
+
 build binary:
   stage: build
   image: golang:1.19
@@ -102,6 +114,22 @@ build binary:
   artifacts:
     paths:
       - release
+
+
+SBOM to SW360 import:
+  stage: release
+  needs: ["SBOM validation"]
+  rules:
+    - if: $CI_COMMIT_TAG
+      variables:
+        SW360_URL: ${SW360_URL_PROD}
+        STAGE_NAME: production
+  image:
+    name: cr.siemens.com/sidrive-iq/teams/team-ecs/tools/dx360:latest
+    entrypoint: [""]
+  script:
+    - echo "Uploading SBOM to ${STAGE_NAME} SW360 instance"
+    - /app/dx360 import ${SBOM_FILE}
 
 create generic package:
   stage: release
