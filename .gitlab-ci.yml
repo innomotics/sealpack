@@ -115,7 +115,6 @@ build binary:
     paths:
       - release
 
-
 SBOM to SW360 import:
   stage: release
   needs: ["SBOM validation"]
@@ -125,7 +124,7 @@ SBOM to SW360 import:
         SW360_URL: ${SW360_URL_PROD}
         STAGE_NAME: production
   image:
-    name: cr.siemens.com/sidrive-iq/teams/team-ecs/tools/dx360:latest
+    name: cr.siemens.com/innomotics/shared/clearing/dx360:v0.0.3
     entrypoint: [""]
   script:
     - echo "Uploading SBOM to ${STAGE_NAME} SW360 instance"
