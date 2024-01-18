@@ -103,6 +103,9 @@ SBOM validation:
   script:
     - pip install --index-url https://devops.bt.siemens.com/artifactory/api/pypi/pypi-all/simple standard-bom-validator
     - standard-bom-validator -sbom "${SBOM_FILE}" -profile clearing
+  artifacts:
+    paths:
+      - ${SBOM_FILE}
 
 build binary:
   stage: build
