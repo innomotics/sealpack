@@ -66,7 +66,7 @@ func sealCommand() error {
 	log.Debugf("seal: encrypting %d keys", len(common.Seal.RecipientPubKeyPaths))
 	// Now create encryption key and seal them for all recipients
 	if !common.Seal.Public {
-		if err = addKeys(envelope, []byte(arc.EncryptionKey)); err != nil {
+		if err = addKeys(&envelope, []byte(arc.EncryptionKey)); err != nil {
 			return err
 		}
 	}
@@ -91,7 +91,7 @@ func sealCommand() error {
 }
 
 // addKeys encrypts the symmetric key for every receiver and attaches them to the envelope
-func addKeys(envelope common.Envelope, plainKey []byte) error {
+func addKeys(envelope *common.Envelope, plainKey []byte) error {
 	var err error
 	envelope.ReceiverKeys = [][]byte{}
 	envelope.ReceiverKeys = make([][]byte, len(common.Seal.RecipientPubKeyPaths))
