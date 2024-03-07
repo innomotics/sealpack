@@ -61,7 +61,7 @@ SBOM creation:
   image: cr.siemens.com/sbom/scanners/go-scanner:v1
   script:
     - go mod tidy
-    - cyclonedx-gomod app -assert-licenses -json -licenses -output plain-sbom.json .
+    - cyclonedx-gomod mod -assert-licenses -json -licenses -output plain-sbom.json .
     - /add-tools-entry.sh plain-sbom.json temp-sbom.json
     - jq '.metadata.properties[.metadata.properties| length] |= . + {"name":"siemens:profile","value":"clearing"}' temp-sbom.json > temp2-sbom.json
     - /add-sources.sh temp2-sbom.json ${SBOM_FILE}
@@ -113,7 +113,9 @@ build binary:
   script:
     - mkdir release
     - go mod tidy
-    - go build -o release/${CI_PROJECT_NAME} .
+    - pushd cmd
+    - go build -o ../release/${CI_PROJECT_NAME} .
+    - popd
   artifacts:
     paths:
       - release

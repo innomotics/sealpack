@@ -118,8 +118,8 @@ func TestRemoveAll(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			Unseal = &UnsealConfig{TargetRegistry: LocalRegistry}
-			tt.wantErr(t, RemoveAll(tt.tags), fmt.Sprintf("RemoveAll(%v)", tt.tags))
+			config := &UnsealConfig{TargetRegistry: LocalRegistry}
+			tt.wantErr(t, RemoveAll(config, tt.tags), fmt.Sprintf("RemoveAll(%v)", tt.tags))
 		})
 	}
 }

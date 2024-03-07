@@ -225,27 +225,27 @@ func TestGetCompressionAlgoIndex(t *testing.T) {
 
 func TestOpenArchiveReader(t *testing.T) {
 	// Arrange
-	Seal = &SealConfig{
+	sealCfg := &SealConfig{
 		PrivKeyPath: "../test/private.pem",
 	}
 	sig := NewSignatureList("SHA512")
 	arc := CreateArchiveWriter(true, 0)
 	assert.NoError(t, arc.AddToArchive("path/to/foo", []byte("Hold your breath and count to 10.")))
 	assert.NoError(t, sig.AddFile("path/to/foo", []byte("Hold your breath and count to 10.")))
-	assert.NoError(t, arc.AddToc(sig))
+	assert.NoError(t, arc.AddToc(sealCfg, sig))
 	b, err := arc.Finalize()
 	assert.NoError(t, err)
 	assert.True(t, b > 10)
 
 	// Act
-	Unseal = &UnsealConfig{
+	config := &UnsealConfig{
 		SigningKeyPath: "../test/public.pem",
 	}
 	f, err := os.Open(arc.outFile.Name())
 	assert.NoError(t, err)
 	ra, err := OpenArchiveReader(f, 0)
 	assert.NoError(t, err)
-	assert.NoError(t, ra.Unpack())
+	assert.NoError(t, ra.Unpack(config))
 }
 
 func TestReadArchive_InitializeCompression(t *testing.T) {

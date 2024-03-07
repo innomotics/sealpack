@@ -15,7 +15,11 @@ package common
  */
 
 import (
-	"github.com/sigstore/sigstore/pkg/signature"
+	"encoding/json"
+	"fmt"
+	"gopkg.in/yaml.v3"
+	"os"
+	"path/filepath"
 	"sealpack/aws"
 	"strings"
 )
@@ -29,6 +33,7 @@ type SealConfig struct {
 	Seal                 bool
 	HashingAlgorithm     string
 	CompressionAlgorithm string
+	ContentFileName      string
 	Files                []string
 	ImageNames           []string
 	Images               []*ContainerImage
@@ -48,24 +53,39 @@ const (
 	DefaultRegistry = "docker.io"
 )
 
-var (
-	SealedFile string
-	Seal       *SealConfig
-	Unseal     *UnsealConfig
-)
-
 type PackageContent interface {
 	PackagePath() string
 }
 
-type Signer struct {
-	Signer *signature.SignerVerifier
-}
-
-// CreateSigner cheese the correct signature.Signer depending on the private key string
-func CreateSigner() (signature.Signer, error) {
-	if strings.HasPrefix(Seal.PrivKeyPath, "awskms:///") {
-		return createKmsSigner(Seal.PrivKeyPath)
+// ReadConfiguration searches for the latest configuration file and reads the contents.
+// The contents are parsed as a slice of PackageContent from a JSON or YAML file.
+func ReadConfiguration(fileName string, sealCfg *SealConfig) error {
+	data, err := os.ReadFile(fileName)
+	if err != nil {
+		return err
 	}
-	return CreatePKISigner(Seal.PrivKeyPath)
+	var contents ArchiveContents
+	switch strings.ToLower(filepath.Ext(fileName)) {
+	case ".json":
+		err = json.Unmarshal(data, &contents)
+		break
+	case ".yaml", ".yml":
+		err = yaml.Unmarshal(data, &contents)
+		break
+	default:
+		err = fmt.Errorf("invalid file type: %s", filepath.Ext(fileName))
+	}
+	if err != nil {
+		return err
+	}
+	if contents.Files != nil {
+		sealCfg.Files = contents.Files
+	}
+	if contents.Images != nil {
+		sealCfg.Images = make([]*ContainerImage, len(contents.Images))
+		for i := 0; i < len(contents.Images); i++ {
+			sealCfg.Images[i] = ParseContainerImage(contents.Images[i])
+		}
+	}
+	return nil
 }

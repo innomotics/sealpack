@@ -15,42 +15,81 @@ package common
  */
 
 import (
-	"crypto/rsa"
-	"github.com/sigstore/sigstore/pkg/signature"
-	"github.com/sigstore/sigstore/pkg/signature/kms/aws"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"path/filepath"
 	"testing"
 )
 
-const TestFilePath = "../test"
-
-func Test_CreateSigner(t *testing.T) {
-	Seal = &SealConfig{
-		HashingAlgorithm: "SHA512",
-		PrivKeyPath:      filepath.Join(filepath.Clean(TestFilePath), "private.pem"),
-	}
-	privKey, err := LoadPrivateKey(Seal.PrivKeyPath)
-	assert.Nil(t, err)
-	sig, err := CreateSigner()
-	assert.Nil(t, err)
-	assert.NotNil(t, sig)
-	pub, err := sig.PublicKey()
-	assert.Nil(t, err)
-	assert.Equal(t, privKey.(*rsa.PrivateKey).Public(), pub) // PubKey of 4096 RSA is 512 bytes
+func Test_ReadConfigurationEmptyJSON(t *testing.T) {
+	cfg := &SealConfig{}
+	configFile := filepath.Join(os.TempDir(), "content-config.json")
+	jsonConfig := []byte(`{}`)
+	assert.NoError(t, os.WriteFile(configFile, jsonConfig, 0777))
+	defer os.Remove(configFile)
+	assert.NoError(t, ReadConfiguration(configFile, cfg))
+	assert.Nil(t, cfg.Files)
+	assert.Nil(t, cfg.Images)
 }
-func Test_CreateSignerAWS(t *testing.T) {
-	old := createKmsSigner
-	defer func() { createKmsSigner = old }()
-	createKmsSigner = func(uri string) (signature.Signer, error) {
-		assert.Contains(t, uri, "awskms:///")
-		return &aws.SignerVerifier{}, nil
-	}
-	Seal = &SealConfig{
-		HashingAlgorithm: "SHA512",
-		PrivKeyPath:      "awskms:///foo:bar:fnord",
-	}
-	sig, err := CreateSigner()
-	assert.Nil(t, err)
-	assert.Implements(t, (*signature.Signer)(nil), sig)
+
+func Test_ReadConfigurationInvalidJSON(t *testing.T) {
+	cfg := &SealConfig{}
+	configFile := filepath.Join(os.TempDir(), "content-config.json")
+	jsonConfig := []byte(`{invalid}`)
+	assert.NoError(t, os.WriteFile(configFile, jsonConfig, 0777))
+	defer os.Remove(configFile)
+	assert.ErrorContains(t, ReadConfiguration(configFile, cfg), "invalid character")
+}
+
+func Test_ReadConfigurationJSON(t *testing.T) {
+	cfg := &SealConfig{}
+	configFile := filepath.Join(os.TempDir(), "content-config.json")
+	jsonConfig := []byte(`{"images":["alpine:latest","cr.example.com/foo/bar/fnord:3.14"],"files":["abc.txt","test.log","/var/log/syslog"]}`)
+	assert.NoError(t, os.WriteFile(configFile, jsonConfig, 0777))
+	defer os.Remove(configFile)
+	assert.NoError(t, ReadConfiguration(configFile, cfg))
+	assert.Equal(t, 3, len(cfg.Files))
+	assert.Equal(t, 2, len(cfg.Images))
+}
+
+func Test_ReadConfigurationInvalidYAML(t *testing.T) {
+	cfg := &SealConfig{}
+	configFile := filepath.Join(os.TempDir(), "content-config.yaml")
+	yamlConfig := []byte(`images:
+foo:bar`)
+	assert.NoError(t, os.WriteFile(configFile, yamlConfig, 0777))
+	defer os.Remove(configFile)
+	assert.ErrorContains(t, ReadConfiguration(configFile, cfg), "could not find expected ':'")
+}
+
+func Test_ReadConfigurationYAML(t *testing.T) {
+	cfg := &SealConfig{}
+	configFile := filepath.Join(os.TempDir(), "content-config.yaml")
+	yamlConfig := []byte(`images:
+- 'alpine:latest'
+- 'cr.example.com/foo/bar/fnord:3.14'
+files:
+- abc.txt
+- test.log
+- /var/log/syslog`)
+	assert.NoError(t, os.WriteFile(configFile, yamlConfig, 0777))
+	defer os.Remove(configFile)
+	assert.NoError(t, ReadConfiguration(configFile, cfg))
+	assert.Equal(t, 3, len(cfg.Files))
+	assert.Equal(t, 2, len(cfg.Images))
+}
+
+func Test_ReadConfigurationInvalidType(t *testing.T) {
+	cfg := &SealConfig{}
+	configFile := filepath.Join(os.TempDir(), "content-config.fnord")
+	yamlConfig := []byte(`no content needed`)
+	assert.NoError(t, os.WriteFile(configFile, yamlConfig, 0777))
+	defer os.Remove(configFile)
+	assert.ErrorContains(t, ReadConfiguration(configFile, cfg), "invalid file type: .fnord")
+}
+
+func Test_ReadConfigurationNonExisting(t *testing.T) {
+	cfg := &SealConfig{}
+	configFile := filepath.Join(os.TempDir(), "nonexisting.yaml")
+	assert.ErrorContains(t, ReadConfiguration(configFile, cfg), "no such file or directory")
 }

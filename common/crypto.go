@@ -21,14 +21,28 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"github.com/ovh/symmecrypt"
 	"github.com/ovh/symmecrypt/ciphers/xchacha20poly1305"
 	"github.com/ovh/symmecrypt/keyloader"
 	"github.com/sigstore/sigstore/pkg/signature"
 	"io"
 	"os"
+	"strings"
 	"time"
 )
+
+type Signer struct {
+	Signer *signature.SignerVerifier
+}
+
+// CreateSigner cheese the correct signature.Signer depending on the private key string
+func CreateSigner(sealCfg *SealConfig) (signature.Signer, error) {
+	if strings.HasPrefix(sealCfg.PrivKeyPath, "awskms:///") {
+		return createKmsSigner(sealCfg.PrivKeyPath)
+	}
+	return CreatePKISigner(sealCfg.PrivKeyPath)
+}
 
 // LoadPublicKey reads and parses a public key from a file
 func LoadPublicKey(path string) (crypto.PublicKey, error) {
@@ -142,4 +156,28 @@ func TryUnsealKey(encrypted []byte, rsaKey *rsa.PrivateKey) (symmecrypt.Key, err
 		return nil, err
 	}
 	return symmecrypt.NewKey(xchacha20poly1305.CipherName, string(keyBytes))
+}
+
+// AddKeys encrypts the symmetric key for every receiver and attaches them to the envelope
+func AddKeys(sealCfg *SealConfig, envelope *Envelope, plainKey []byte) error {
+	var err error
+	envelope.ReceiverKeys = [][]byte{}
+	envelope.ReceiverKeys = make([][]byte, len(sealCfg.RecipientPubKeyPaths))
+	for iKey, recipientPubKeyPath := range sealCfg.RecipientPubKeyPaths {
+		var recPubKey crypto.PublicKey
+		if recPubKey, err = LoadPublicKey(recipientPubKeyPath); err != nil {
+			return err
+		}
+		if key, ok := recPubKey.(*rsa.PublicKey); ok {
+			if envelope.ReceiverKeys[iKey], err = rsa.EncryptPKCS1v15(rand.Reader, key, plainKey); err != nil {
+				return err
+			}
+			if len(envelope.ReceiverKeys[iKey]) != key.Size() {
+				return fmt.Errorf("key size must be %d bits", key.Size())
+			}
+		} else {
+			return fmt.Errorf("encryption key %d cannot be used for encryption. Please provide a valid RSA public key", iKey+1)
+		}
+	}
+	return nil
 }
