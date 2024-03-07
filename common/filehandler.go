@@ -25,16 +25,16 @@ var uploadS3 = aws.S3UploadArchive
 var stdout = os.Stdout
 
 // WriteFileBytes allows for writing a byte slice to a regular file, S3 bucket or stdout
-func WriteFileBytes(contents []byte) error {
-	if strings.HasPrefix(Seal.Output, aws.S3UriPrefix) {
-		return uploadS3(bytes.NewReader(contents), Seal.Output)
+func WriteFileBytes(sealCfg *SealConfig, contents []byte) error {
+	if strings.HasPrefix(sealCfg.Output, aws.S3UriPrefix) {
+		return uploadS3(bytes.NewReader(contents), sealCfg.Output)
 	} else {
 		var of *os.File
 		var err error
-		if Seal.Output == "-" {
+		if sealCfg.Output == "-" {
 			of = stdout
 		} else {
-			of, err = os.Create(Seal.Output)
+			of, err = os.Create(sealCfg.Output)
 			if err != nil {
 				return err
 			}
@@ -46,24 +46,24 @@ func WriteFileBytes(contents []byte) error {
 }
 
 // NewOutputFile creates a new output file depending on the type of output target
-func NewOutputFile() (*os.File, error) {
-	if strings.HasPrefix(strings.ToLower(Seal.Output), aws.S3UriPrefix) {
+func NewOutputFile(sealCfg *SealConfig) (*os.File, error) {
+	if strings.HasPrefix(strings.ToLower(sealCfg.Output), aws.S3UriPrefix) {
 		return os.CreateTemp("", "")
 	}
-	if Seal.Output == "-" {
+	if sealCfg.Output == "-" {
 		return stdout, nil
 	}
-	return os.Create(Seal.Output)
+	return os.Create(sealCfg.Output)
 }
 
 // CleanupFileWriter cleans up temporary files and performs post-finish operations
-func CleanupFileWriter(f *os.File) error {
-	if strings.HasPrefix(strings.ToLower(Seal.Output), aws.S3UriPrefix) {
+func CleanupFileWriter(sealCfg *SealConfig, f *os.File) error {
+	if strings.HasPrefix(strings.ToLower(sealCfg.Output), aws.S3UriPrefix) {
 		tmp, err := os.Open(f.Name())
 		if err != nil {
 			return err
 		}
-		if err = uploadS3(tmp, Seal.Output); err != nil {
+		if err = uploadS3(tmp, sealCfg.Output); err != nil {
 			return err
 		}
 		return os.Remove(f.Name())

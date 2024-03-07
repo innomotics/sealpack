@@ -22,12 +22,51 @@ import (
 	"github.com/ovh/symmecrypt"
 	"github.com/ovh/symmecrypt/ciphers/xchacha20poly1305"
 	"github.com/ovh/symmecrypt/keyloader"
+	"github.com/sigstore/sigstore/pkg/signature"
+	"github.com/sigstore/sigstore/pkg/signature/kms/aws"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
+
+const TestFilePath = "../test"
+
+// /////////////////////
+// Test CreateSigner //
+// /////////////////////
+
+func Test_CreateSigner(t *testing.T) {
+	sealCfg := &SealConfig{
+		HashingAlgorithm: "SHA512",
+		PrivKeyPath:      filepath.Join(filepath.Clean(TestFilePath), "private.pem"),
+	}
+	privKey, err := LoadPrivateKey(sealCfg.PrivKeyPath)
+	assert.Nil(t, err)
+	sig, err := CreateSigner(sealCfg)
+	assert.Nil(t, err)
+	assert.NotNil(t, sig)
+	pub, err := sig.PublicKey()
+	assert.Nil(t, err)
+	assert.Equal(t, privKey.(*rsa.PrivateKey).Public(), pub) // PubKey of 4096 RSA is 512 bytes
+}
+
+func Test_CreateSignerAWS(t *testing.T) {
+	old := createKmsSigner
+	defer func() { createKmsSigner = old }()
+	createKmsSigner = func(uri string) (signature.Signer, error) {
+		assert.Contains(t, uri, "awskms:///")
+		return &aws.SignerVerifier{}, nil
+	}
+	sealCfg := &SealConfig{
+		HashingAlgorithm: "SHA512",
+		PrivKeyPath:      "awskms:///foo:bar:fnord",
+	}
+	sig, err := CreateSigner(sealCfg)
+	assert.Nil(t, err)
+	assert.Implements(t, (*signature.Signer)(nil), sig)
+}
 
 // /////////////////////
 // Test LoadPublicKey //

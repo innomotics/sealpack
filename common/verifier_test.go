@@ -10,14 +10,6 @@ import (
 	"testing"
 )
 
-func setupTest(tb testing.TB) func(tb testing.TB) {
-	Unseal = &UnsealConfig{}
-
-	return func(tb testing.TB) {
-		Unseal = nil
-	}
-}
-
 func TestNewVerifier(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -64,13 +56,11 @@ func TestNewVerifier(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tearDown := setupTest(t)
-			defer tearDown(t)
-			fmt.Println(Unseal)
+			config := &UnsealConfig{}
 			fmt.Println(tt.SigningKeyPath)
-			Unseal.SigningKeyPath = tt.SigningKeyPath
-			Unseal.HashingAlgorithm = tt.HashingAlgorithm
-			_, err := NewVerifier()
+			config.SigningKeyPath = tt.SigningKeyPath
+			config.HashingAlgorithm = tt.HashingAlgorithm
+			_, err := NewVerifier(config)
 			tt.wantErr(t, err, fmt.Sprintf("NewVerifier()"))
 		})
 	}
@@ -211,13 +201,13 @@ func TestVerifier_Verify(t *testing.T) {
 				unsafeTags:   tt.fields.unsafeTags,
 				Signatures:   tt.fields.Signatures,
 			}
-			Unseal = &UnsealConfig{
+			config := &UnsealConfig{
 				OutputPath: "../demo",
 			}
 			if tt.errContains == "" {
-				assert.NoError(t, v.Verify(), fmt.Sprintf("Verify()"))
+				assert.NoError(t, v.Verify(config), fmt.Sprintf("Verify()"))
 			} else {
-				assert.ErrorContains(t, v.Verify(), tt.errContains, fmt.Sprintf("Verify()"))
+				assert.ErrorContains(t, v.Verify(config), tt.errContains, fmt.Sprintf("Verify()"))
 			}
 		})
 	}

@@ -114,7 +114,7 @@ func ParseContainerImage(name string) *ContainerImage {
 }
 
 // getContainerDClient creates a client for accessing a local containerD instance
-func getContainerDClient() (*containerd.Client, context.Context, error) {
+func getContainerDClient(config *UnsealConfig) (*containerd.Client, context.Context, error) {
 	var err error
 	var sock string
 	var nsList []string
@@ -134,30 +134,30 @@ func getContainerDClient() (*containerd.Client, context.Context, error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		if !contains(nsList, Unseal.Namespace) {
+		if !contains(nsList, config.Namespace) {
 			err = fmt.Errorf("invalid namespace")
 			return nil, nil, err
 		}
-		containerDContext = namespaces.WithNamespace(context.Background(), Unseal.Namespace)
+		containerDContext = namespaces.WithNamespace(context.Background(), config.Namespace)
 	}
 	return containerDClient, containerDContext, nil
 }
 
 // ImportImage imports one OCI image into a local containerd storage or a provided registry.
-func ImportImage(tarReader io.ReadCloser, tag *name.Tag) (newImport bool, err error) {
-	switch Unseal.TargetRegistry {
+func ImportImage(config *UnsealConfig, tarReader io.ReadCloser, tag *name.Tag) (newImport bool, err error) {
+	switch config.TargetRegistry {
 	case LocalRegistry:
-		return importLocal(tarReader, tag)
+		return importLocal(config, tarReader, tag)
 	default:
-		return importToRegistry(tarReader, tag)
+		return importToRegistry(config, tarReader, tag)
 	}
 }
 
 // importLocal imports an image to a locally running containerd instance
-func importLocal(tarReader io.ReadCloser, tag *name.Tag) (newImport bool, err error) {
+func importLocal(config *UnsealConfig, tarReader io.ReadCloser, tag *name.Tag) (newImport bool, err error) {
 	var oldImg containerd.Image
 	var newImg []images.Image
-	client, ctx, err := getContainerDClient()
+	client, ctx, err := getContainerDClient(config)
 	if err != nil {
 		return false, err
 	}
@@ -174,11 +174,11 @@ func importLocal(tarReader io.ReadCloser, tag *name.Tag) (newImport bool, err er
 }
 
 // importToRegistry imports a container image into a target registry
-func importToRegistry(tarReader io.ReadCloser, tag *name.Tag) (newImport bool, err error) {
+func importToRegistry(config *UnsealConfig, tarReader io.ReadCloser, tag *name.Tag) (newImport bool, err error) {
 	var img v1.Image
 	var digBefore v1.Hash
 	var digAfter string
-	tag.Repository, err = name.NewRepository(Unseal.TargetRegistry)
+	tag.Repository, err = name.NewRepository(config.TargetRegistry)
 	if err != nil {
 		return
 	}
@@ -201,11 +201,11 @@ func importToRegistry(tarReader io.ReadCloser, tag *name.Tag) (newImport bool, e
 }
 
 // RemoveAll multiple images from a registry or containerD instance defined by slice
-func RemoveAll(tags []*name.Tag) (err error) {
+func RemoveAll(config *UnsealConfig, tags []*name.Tag) (err error) {
 	for _, tag := range tags {
-		switch Unseal.TargetRegistry {
+		switch config.TargetRegistry {
 		case LocalRegistry:
-			client, ctx, err := getContainerDClient()
+			client, ctx, err := getContainerDClient(config)
 			if err != nil {
 				return err
 			}

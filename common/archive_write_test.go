@@ -169,22 +169,22 @@ func TestAddContents(t *testing.T) {
 	assert.NoError(t, f.Close())
 
 	// Add Images and Files
-	Seal = &SealConfig{
+	sealCfg := &SealConfig{
 		PrivKeyPath: "../test/private.pem",
 		Files:       []string{f.Name()},
-	}
-	Seal.Images = []*ContainerImage{
-		ParseContainerImage("alpine:latest"),
-		ParseContainerImage("alpine:3.16"),
-		ParseContainerImage("alpine:3.17"),
+		Images: []*ContainerImage{
+			ParseContainerImage("alpine:latest"),
+			ParseContainerImage("alpine:3.16"),
+			ParseContainerImage("alpine:3.17"),
+		},
 	}
 
 	// Add Signatures and finally add contents
 	sig := NewSignatureList("SHA256")
-	assert.NoError(t, arc.AddContents(sig))
+	assert.NoError(t, arc.AddContents(sealCfg, sig))
 
 	// Add TOC from signatures
-	assert.NoError(t, arc.AddToc(sig))
+	assert.NoError(t, arc.AddToc(sealCfg, sig))
 
 	size, err := arc.Finalize()
 	assert.NoError(t, err)
@@ -199,13 +199,13 @@ func TestAddTocNoKey(t *testing.T) {
 	assert.NotNil(t, arc.outFile)
 	assert.Nil(t, arc.encryptWriter)
 
-	Seal = &SealConfig{
+	sealCfg := &SealConfig{
 		PrivKeyPath: "../test/foo.bar",
 	}
 
 	sig := NewSignatureList("SHA256")
-	assert.NoError(t, arc.AddContents(sig))
-	assert.ErrorContains(t, arc.AddToc(sig), "seal: could not create signer: open ../test/foo.bar: no such file or directory")
+	assert.NoError(t, arc.AddContents(sealCfg, sig))
+	assert.ErrorContains(t, arc.AddToc(sealCfg, sig), "seal: could not create signer: open ../test/foo.bar: no such file or directory")
 }
 
 // Test_WriteOutput only tests the successful default case
