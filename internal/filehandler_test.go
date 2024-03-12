@@ -1,4 +1,4 @@
-package common
+package internal
 
 /*
  * Sealpack
@@ -27,29 +27,25 @@ import (
 
 func Test_WriteFile(t *testing.T) {
 	// Arrange
-	sealCfg := &SealConfig{
-		Output: filepath.Join(TestFilePath, "test.out"),
-	}
-	assert.NoFileExists(t, sealCfg.Output)
+	output := filepath.Join(TestFilePath, "test.out")
+	assert.NoFileExists(t, output)
 	content := []byte("Hold your breath and count to 10.")
 
 	// Act
-	err := WriteFileBytes(sealCfg, content)
+	err := WriteFileBytes(output, content)
 	assert.Nil(t, err)
 
 	// Assert
-	assert.FileExists(t, sealCfg.Output)
-	defer os.Remove(sealCfg.Output)
-	cnt, err := os.ReadFile(sealCfg.Output)
+	assert.FileExists(t, output)
+	defer os.Remove(output)
+	cnt, err := os.ReadFile(output)
 	assert.Nil(t, err)
 	assert.Equal(t, content, cnt)
 }
 
 func Test_WriteFileStdout(t *testing.T) {
 	// Arrange
-	sealCfg := &SealConfig{
-		Output: "-",
-	}
+	output := "-"
 	content := []byte("Hold your breath and count to 10.")
 	var err error
 	stdout, err = os.CreateTemp("/tmp", "test.tmp")
@@ -58,7 +54,7 @@ func Test_WriteFileStdout(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Act
-	err = WriteFileBytes(sealCfg, content)
+	err = WriteFileBytes(output, content)
 	assert.Nil(t, err)
 	_, err = stdout.Seek(0, 0)
 	assert.Nil(t, err)
@@ -71,31 +67,27 @@ func Test_WriteFileStdout(t *testing.T) {
 
 func Test_WriteFileS3(t *testing.T) {
 	// Arrange
-	sealCfg := &SealConfig{
-		Output: "s3://somebucket/someprefix/some.object",
-	}
+	output := "s3://somebucket/someprefix/some.object"
 	content := []byte("Hold your breath and count to 10.")
 	uploadS3 = func(reader io.ReadSeeker, uri string) error {
 		bts, err := io.ReadAll(reader)
 		assert.NoError(t, err)
 		assert.Equal(t, content, bts)
-		assert.Equal(t, sealCfg.Output, uri)
+		assert.Equal(t, output, uri)
 		return nil
 	}
 
 	// Act
-	err := WriteFileBytes(sealCfg, content)
+	err := WriteFileBytes(output, content)
 	assert.Nil(t, err)
 }
 
 func Test_WriteFileUnallowed(t *testing.T) {
 	// Arrange
-	sealCfg := &SealConfig{
-		Output: "/sys/class/some.object",
-	}
+	output := "/sys/class/some.object"
 	content := []byte("Hold your breath and count to 10.")
 	// Act
-	err := WriteFileBytes(sealCfg, content)
+	err := WriteFileBytes(output, content)
 	assert.Error(t, err)
 }
 
@@ -130,8 +122,7 @@ func TestNewOutputFile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sealCfg := &SealConfig{Output: tt.outputParam}
-			got, err := NewOutputFile(sealCfg)
+			got, err := NewOutputFile(tt.outputParam)
 			assert.NoError(t, err)
 			assert.Regexp(t, tt.want, got.Name(), "NewOutputFile()")
 		})
@@ -159,10 +150,9 @@ func TestCleanupFileWriter(t *testing.T) {
 				assert.Equal(t, tt.outputParam, uri)
 				return nil
 			}
-			sealCfg := &SealConfig{Output: tt.outputParam}
 			tmpFile, err := os.CreateTemp("", "foo.bar")
 			assert.NoError(t, err)
-			assert.NoError(t, CleanupFileWriter(sealCfg, tmpFile))
+			assert.NoError(t, CleanupFileWriter(tt.outputParam, tmpFile))
 			assert.Equal(t, tt.uploadCalled, uploadCalled)
 			if !tt.uploadCalled {
 				assert.NoError(t, os.Remove(tmpFile.Name()))
@@ -173,9 +163,8 @@ func TestCleanupFileWriter(t *testing.T) {
 }
 
 func TestCleanupFileWriter_Errors(t *testing.T) {
-	sealCfg := &SealConfig{Output: "s3://foo/bar"}
 	tmpFile := os.NewFile(uintptr(syscall.Stdin), "/tmp/does/not/exist")
-	result := CleanupFileWriter(sealCfg, tmpFile)
+	result := CleanupFileWriter("s3://foo/bar", tmpFile)
 	assert.ErrorContains(t, result, "no such file or directory")
 }
 
@@ -184,10 +173,9 @@ func TestCleanupFileWriter_ErrorsUpload(t *testing.T) {
 	uploadS3 = func(reader io.ReadSeeker, uri string) error {
 		return fmt.Errorf("faked upload error here")
 	}
-	sealCfg := &SealConfig{Output: "s3://foo/bar"}
 	tmpFile, err := os.CreateTemp("", "foo.bar")
 	assert.NoError(t, err)
-	result := CleanupFileWriter(sealCfg, tmpFile)
+	result := CleanupFileWriter("s3://foo/bar", tmpFile)
 	assert.ErrorContains(t, result, "faked upload error here")
 	uploadS3 = tmp
 }

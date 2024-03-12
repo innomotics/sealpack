@@ -21,12 +21,11 @@ import (
 	"github.com/spf13/cobra"
 	"os"
 	"sealpack"
-	"sealpack/common"
 )
 
 type CommandConfig struct {
-	Seal    *common.SealConfig
-	Unseal  *common.UnsealConfig
+	Seal    *sealpack.SealConfig
+	Unseal  *sealpack.UnsealConfig
 	Inspect string
 }
 
@@ -83,8 +82,8 @@ var (
 // ParseCommands is configuring all cobra commands and execute them
 func ParseCommands() error {
 	conf := &CommandConfig{
-		Seal:    &common.SealConfig{},
-		Unseal:  &common.UnsealConfig{},
+		Seal:    &sealpack.SealConfig{},
+		Unseal:  &sealpack.UnsealConfig{},
 		Inspect: "",
 	}
 
@@ -112,8 +111,8 @@ func ParseCommands() error {
 	unsealCmd.Flags().StringVarP(&conf.Unseal.OutputPath, "output", "o", ".", "Output path to unpack the contents to")
 	_ = sealCmd.MarkFlagRequired("signer-key")
 	unsealCmd.Flags().StringVarP(&conf.Unseal.HashingAlgorithm, "hashing-algorithm", "a", "SHA512", "Name of hashing algorithm to be used")
-	unsealCmd.Flags().StringVarP(&conf.Unseal.TargetRegistry, "target-registry", "r", common.LocalRegistry, "URL of the target registry to import container images; 'local' imports them locally")
-	unsealCmd.Flags().StringVarP(&conf.Unseal.Namespace, "namespace", "n", common.ContainerDDefaultNs, "ContainerD namespace to import the images into")
+	unsealCmd.Flags().StringVarP(&conf.Unseal.TargetRegistry, "target-registry", "r", "local", "URL of the target registry to import container images; 'local' imports them locally")
+	unsealCmd.Flags().StringVarP(&conf.Unseal.Namespace, "namespace", "n", "default", "ContainerD namespace to import the images into")
 
 	return rootCmd.ExecuteContext(context.WithValue(context.Background(), "config", conf))
 }

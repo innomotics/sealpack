@@ -1,4 +1,4 @@
-package common
+package internal
 
 /*
  * Sealpack
@@ -34,7 +34,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 const (
@@ -202,7 +201,7 @@ func (e *Envelope) WriteOutput(f *os.File, arc *WriteArchive) error {
 }
 
 // GetPayload provides the Payload from the envelope
-func (e *Envelope) GetPayload(config *UnsealConfig) (payload io.Reader, err error) {
+func (e *Envelope) GetPayload(privateKeyPath string) (payload io.Reader, err error) {
 	if len(e.ReceiverKeys) < 1 {
 		log.Info("unseal: read public archive")
 		// Was not encrypted: public archive
@@ -211,7 +210,7 @@ func (e *Envelope) GetPayload(config *UnsealConfig) (payload io.Reader, err erro
 		log.Infof("unseal: read archive sealed for %d receivers", len(e.ReceiverKeys))
 		// Try to find a key that can be decrypted with the provided private key
 		var pKey interface{}
-		pKey, err = LoadPrivateKey(config.PrivKeyPath)
+		pKey, err = LoadPrivateKey(privateKeyPath)
 		if err != nil {
 			return
 		}
@@ -349,7 +348,7 @@ func (arc *WriteArchive) WriteToArchive(fileName string, contents *os.File) erro
 		Name:    fileName,
 		Size:    info.Size(),
 		Mode:    0755,
-		ModTime: time.Now(),
+		ModTime: info.ModTime(),
 	}); err != nil {
 		return err
 	}
@@ -370,19 +369,19 @@ func (arc *WriteArchive) AddToArchive(imgName string, contents []byte) error {
 }
 
 // AddContents adds first files, secondly images to the WriteArchive providing FileSignatures for verification
-func (arc *WriteArchive) AddContents(sealCfg *SealConfig, signatures *FileSignatures) (err error) {
-	err = arc.addFiles(sealCfg, signatures)
+func (arc *WriteArchive) AddContents(files []string, images []*ContainerImage, signatures *FileSignatures) (err error) {
+	err = arc.addFiles(files, signatures)
 	if err != nil {
 		return
 	}
-	err = arc.addImages(sealCfg, signatures)
+	err = arc.addImages(images, signatures)
 	return
 }
 
 // addImages adds images to the WriteArchive providing FileSignatures for verification
-func (arc *WriteArchive) addImages(sealCfg *SealConfig, signatures *FileSignatures) (err error) {
+func (arc *WriteArchive) addImages(images []*ContainerImage, signatures *FileSignatures) (err error) {
 	var inFile *os.File
-	for _, content := range sealCfg.Images {
+	for _, content := range images {
 		inFile, err = SaveImage(content)
 		if err != nil {
 			return fmt.Errorf("failed reading image: %v", err)
@@ -394,21 +393,45 @@ func (arc *WriteArchive) addImages(sealCfg *SealConfig, signatures *FileSignatur
 	return
 }
 
+// isDir checks if a path is a directory or a file. On error, a file is assumed
+func isDir(name string) bool {
+	var err error
+	var file *os.File
+	var fi os.FileInfo
+	file, err = os.Open(name)
+	if err != nil {
+		return false
+	}
+	if fi, err = file.Stat(); err != nil {
+		return false
+	}
+	return fi.IsDir()
+}
+
 // addFiles adds files to the WriteArchive providing FileSignatures for verification
-func (arc *WriteArchive) addFiles(sealCfg *SealConfig, signatures *FileSignatures) (err error) {
+func (arc *WriteArchive) addFiles(files []string, signatures *FileSignatures) (err error) {
 	var globs []string
+	var parent, abs, innerGlob string
 	var inFile *os.File
-	for _, glob := range sealCfg.Files {
-		globs, err = filepath.Glob(glob)
+	for _, glob := range files {
+		if abs, err = filepath.Abs(glob); err != nil {
+			return fmt.Errorf("invalid path '%s': %v", glob, err)
+		}
+		innerGlob = abs
+		if isDir(abs) {
+			innerGlob += "/*"
+		}
+		globs, err = filepath.Glob(innerGlob)
 		if err != nil {
 			return fmt.Errorf("invalid file glob: %v", err)
 		}
+		parent = filepath.Dir(abs)
 		for _, content := range globs {
 			inFile, err = os.Open(content)
-			content = strings.TrimPrefix(content, "/")
 			if err != nil {
 				return fmt.Errorf("failed reading file: %v", err)
 			}
+			content = strings.TrimPrefix(content, parent+"/")
 			if err = arc.storeContents(inFile, content, signatures); err != nil {
 				return
 			}
@@ -436,10 +459,10 @@ func (arc *WriteArchive) storeContents(inFile *os.File, filename string, signatu
 }
 
 // AddToc adds signatures to the archive
-func (arc *WriteArchive) AddToc(sealCfg *SealConfig, signatures *FileSignatures) (err error) {
+func (arc *WriteArchive) AddToc(privateKeyPath string, signatures *FileSignatures) (err error) {
 	// Create Signer according to configuration
 	var signer signature.Signer
-	signer, err = CreateSigner(sealCfg)
+	signer, err = CreateSigner(privateKeyPath)
 	if err != nil {
 		return fmt.Errorf("seal: could not create signer: %v", err)
 	}
@@ -512,10 +535,10 @@ func OpenArchiveReader(r io.Reader, compressionAlgo uint8) (arc *ReadArchive, er
 	return arc, nil
 }
 
-func (arc *ReadArchive) Unpack(config *UnsealConfig) (err error) {
+func (arc *ReadArchive) Unpack(signingKeyPath, hashingAlgorithm, outputPath, namespace, targetRegistry string) (err error) {
 	var h *tar.Header
 	log.Debug("unseal: create verifier")
-	verifier, err := NewVerifier(config)
+	verifier, err := NewVerifier(signingKeyPath, hashingAlgorithm)
 	if err != nil {
 		return err
 	}
@@ -529,7 +552,7 @@ func (arc *ReadArchive) Unpack(config *UnsealConfig) (err error) {
 		}
 		switch h.Typeflag {
 		case tar.TypeReg:
-			if err = arc.extract(config, h, verifier); err != nil {
+			if err = arc.extract(outputPath, namespace, targetRegistry, h, verifier); err != nil {
 				return err
 			}
 		default:
@@ -537,18 +560,18 @@ func (arc *ReadArchive) Unpack(config *UnsealConfig) (err error) {
 		}
 	}
 	log.Debug("unseal: verifying contents signature")
-	return verifier.Verify(config)
+	return verifier.Verify(outputPath, namespace, targetRegistry)
 }
 
-func (arc *ReadArchive) extract(config *UnsealConfig, h *tar.Header, v *Verifier) (err error) {
-	fullFile := filepath.Join(config.OutputPath, h.Name)
+func (arc *ReadArchive) extract(outputPath, namespace, targetRegistry string, h *tar.Header, v *Verifier) (err error) {
+	fullFile := filepath.Join(outputPath, h.Name)
 	if !strings.HasPrefix(h.Name, ContainerImagePrefix) { // Skip creation of folder for images
 		if err = os.MkdirAll(filepath.Dir(fullFile), 0755); err != nil {
 			return fmt.Errorf("creating archive for %s failed: %s", fullFile, err.Error())
 		}
 	}
 	if !strings.HasPrefix(h.Name, TocFileName) {
-		err = arc.extractContentFile(config, h, fullFile, v)
+		err = arc.extractContentFile(namespace, targetRegistry, h, fullFile, v)
 	} else {
 		err = v.AddTocComponent(h, arc.TarReader)
 	}
@@ -556,7 +579,7 @@ func (arc *ReadArchive) extract(config *UnsealConfig, h *tar.Header, v *Verifier
 }
 
 // extractContentFile reads a single file from sealed archive and stores as local file or container image
-func (arc *ReadArchive) extractContentFile(config *UnsealConfig, h *tar.Header, fullFile string, verify *Verifier) (err error) {
+func (arc *ReadArchive) extractContentFile(namespace, targetRegistry string, h *tar.Header, fullFile string, verify *Verifier) (err error) {
 	// Use pipe to parallel read body and create signature
 	buf, bufW := io.Pipe()
 	errCh := make(chan error, 1)
@@ -564,7 +587,7 @@ func (arc *ReadArchive) extractContentFile(config *UnsealConfig, h *tar.Header, 
 		reader := io.TeeReader(arc.TarReader, bufW)
 		// If file: persist, if image: import
 		if strings.HasPrefix(h.Name, ContainerImagePrefix) {
-			err = arc.storeImage(config, h, reader, verify)
+			err = arc.storeImage(namespace, targetRegistry, h, reader, verify)
 			if err != nil {
 				errCh <- err
 			}
@@ -604,14 +627,14 @@ func (arc *ReadArchive) storeFile(h *tar.Header, r io.Reader, fullFile string) (
 }
 
 // storeImage imports a binary image from a Reader into a registry specified by a Tag
-func (arc *ReadArchive) storeImage(config *UnsealConfig, h *tar.Header, r io.Reader, v *Verifier) (err error) {
+func (arc *ReadArchive) storeImage(namespace, targetRegistry string, h *tar.Header, r io.Reader, v *Verifier) (err error) {
 	var tag name.Tag
 	if tag, err = name.NewTag(strings.TrimPrefix(h.Name, ContainerImagePrefix+"/")); err != nil {
 		return err
 	}
 	// If everything matches, reimport images if target registry has been provided
 	var wasImported bool
-	if wasImported, err = ImportImage(config, io.NopCloser(r), &tag); wasImported {
+	if wasImported, err = ImportImage(namespace, targetRegistry, io.NopCloser(r), &tag); wasImported {
 		v.AddUnsafeTag(&tag)
 		return nil
 	}
@@ -642,10 +665,9 @@ func (arc *ReadArchive) InitializeCompression(r io.Reader, compressionAlgo uint8
 func BytesToTar(w *tar.Writer, filename *string, contents []byte) error {
 	var err error
 	if err = w.WriteHeader(&tar.Header{
-		Name:    *filename,
-		Size:    int64(len(contents)),
-		Mode:    0755,
-		ModTime: time.Now(),
+		Name: *filename,
+		Size: int64(len(contents)),
+		Mode: 0755,
 	}); err != nil {
 		return err
 	}

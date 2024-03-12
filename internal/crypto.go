@@ -1,4 +1,4 @@
-package common
+package internal
 
 /*
  * Sealpack
@@ -37,11 +37,11 @@ type Signer struct {
 }
 
 // CreateSigner cheese the correct signature.Signer depending on the private key string
-func CreateSigner(sealCfg *SealConfig) (signature.Signer, error) {
-	if strings.HasPrefix(sealCfg.PrivKeyPath, "awskms:///") {
-		return createKmsSigner(sealCfg.PrivKeyPath)
+func CreateSigner(privateKeyPath string) (signature.Signer, error) {
+	if strings.HasPrefix(privateKeyPath, "awskms:///") {
+		return createKmsSigner(privateKeyPath)
 	}
-	return CreatePKISigner(sealCfg.PrivKeyPath)
+	return CreatePKISigner(privateKeyPath)
 }
 
 // LoadPublicKey reads and parses a public key from a file
@@ -159,11 +159,11 @@ func TryUnsealKey(encrypted []byte, rsaKey *rsa.PrivateKey) (symmecrypt.Key, err
 }
 
 // AddKeys encrypts the symmetric key for every receiver and attaches them to the envelope
-func AddKeys(sealCfg *SealConfig, envelope *Envelope, plainKey []byte) error {
+func AddKeys(recipientPubKeyPaths []string, envelope *Envelope, plainKey []byte) error {
 	var err error
 	envelope.ReceiverKeys = [][]byte{}
-	envelope.ReceiverKeys = make([][]byte, len(sealCfg.RecipientPubKeyPaths))
-	for iKey, recipientPubKeyPath := range sealCfg.RecipientPubKeyPaths {
+	envelope.ReceiverKeys = make([][]byte, len(recipientPubKeyPaths))
+	for iKey, recipientPubKeyPath := range recipientPubKeyPaths {
 		var recPubKey crypto.PublicKey
 		if recPubKey, err = LoadPublicKey(recipientPubKeyPath); err != nil {
 			return err

@@ -1,4 +1,4 @@
-package common
+package internal
 
 import (
 	"archive/tar"
@@ -23,14 +23,14 @@ type Verifier struct {
 }
 
 // NewVerifier Creates a new sealpack integrity verifier structure
-func NewVerifier(config *UnsealConfig) (*Verifier, error) {
+func NewVerifier(signingKeyPath, hashingAlgorithm string) (*Verifier, error) {
 	var err error
 	v := &Verifier{}
-	v.sigVerifier, err = CreatePKIVerifier(config.SigningKeyPath)
+	v.sigVerifier, err = CreatePKIVerifier(signingKeyPath)
 	if err != nil {
 		return nil, err
 	}
-	v.Signatures = NewSignatureList(config.HashingAlgorithm)
+	v.Signatures = NewSignatureList(hashingAlgorithm)
 	return v, nil
 }
 
@@ -57,7 +57,7 @@ func (v *Verifier) AddUnsafeTag(t *name.Tag) {
 
 // Verify checks the final integrity of the sealed archive.
 // Rolls back files or tags if integrity was not verified
-func (v *Verifier) Verify(config *UnsealConfig) (err error) {
+func (v *Verifier) Verify(outputPath, namespace, targetRegistry string) (err error) {
 	// Test if TOC matches collected signatures TOC amd then verify that the TOC signature matches the binary TOC
 	if bytes.Compare(v.toc.Bytes(), v.Signatures.Bytes()) != 0 {
 		return fmt.Errorf("tocs not matching")
@@ -65,11 +65,11 @@ func (v *Verifier) Verify(config *UnsealConfig) (err error) {
 	if err = v.sigVerifier.VerifySignature(v.tocSignature, v.toc); err != nil {
 		// As streaming is done before checking the Signature, rollback all
 		// 1) Rollback Files
-		if errInner := os.RemoveAll(config.OutputPath); errInner != nil {
+		if errInner := os.RemoveAll(outputPath); errInner != nil {
 			log.Errorf("Could not rollback files: %s\n", err.Error())
 		}
 		// 2) Rollback Tags
-		if errInner := RemoveAll(config, v.unsafeTags); errInner != nil {
+		if errInner := RemoveAll(namespace, targetRegistry, v.unsafeTags); errInner != nil {
 			log.Errorf("Could not rollback images: %s\n", err.Error())
 		}
 		return err

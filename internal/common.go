@@ -1,4 +1,4 @@
-package common
+package internal
 
 /*
  * Sealpack
@@ -20,34 +20,11 @@ import (
 	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
-	"sealpack/aws"
+	"sealpack/internal/aws"
 	"strings"
 )
 
 var createKmsSigner = aws.CreateKmsSigner
-
-type SealConfig struct {
-	PrivKeyPath          string
-	RecipientPubKeyPaths []string
-	Public               bool
-	Seal                 bool
-	HashingAlgorithm     string
-	CompressionAlgorithm string
-	ContentFileName      string
-	Files                []string
-	ImageNames           []string
-	Images               []*ContainerImage
-	Output               string
-}
-
-type UnsealConfig struct {
-	PrivKeyPath      string
-	SigningKeyPath   string
-	OutputPath       string
-	HashingAlgorithm string
-	TargetRegistry   string
-	Namespace        string
-}
 
 const (
 	DefaultRegistry = "docker.io"
@@ -59,7 +36,7 @@ type PackageContent interface {
 
 // ReadConfiguration searches for the latest configuration file and reads the contents.
 // The contents are parsed as a slice of PackageContent from a JSON or YAML file.
-func ReadConfiguration(fileName string, sealCfg *SealConfig) error {
+func ReadConfiguration(fileName string, files *[]string, images *[]*ContainerImage) error {
 	data, err := os.ReadFile(fileName)
 	if err != nil {
 		return err
@@ -79,13 +56,14 @@ func ReadConfiguration(fileName string, sealCfg *SealConfig) error {
 		return err
 	}
 	if contents.Files != nil {
-		sealCfg.Files = contents.Files
+		*files = contents.Files
 	}
 	if contents.Images != nil {
-		sealCfg.Images = make([]*ContainerImage, len(contents.Images))
+		imgList := make([]*ContainerImage, len(contents.Images))
 		for i := 0; i < len(contents.Images); i++ {
-			sealCfg.Images[i] = ParseContainerImage(contents.Images[i])
+			imgList[i] = ParseContainerImage(contents.Images[i])
 		}
+		*images = imgList
 	}
 	return nil
 }
