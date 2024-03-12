@@ -1,4 +1,4 @@
-package common
+package internal
 
 import (
 	"archive/tar"
@@ -56,11 +56,7 @@ func TestNewVerifier(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config := &UnsealConfig{}
-			fmt.Println(tt.SigningKeyPath)
-			config.SigningKeyPath = tt.SigningKeyPath
-			config.HashingAlgorithm = tt.HashingAlgorithm
-			_, err := NewVerifier(config)
+			_, err := NewVerifier(tt.SigningKeyPath, tt.HashingAlgorithm)
 			tt.wantErr(t, err, fmt.Sprintf("NewVerifier()"))
 		})
 	}
@@ -201,13 +197,11 @@ func TestVerifier_Verify(t *testing.T) {
 				unsafeTags:   tt.fields.unsafeTags,
 				Signatures:   tt.fields.Signatures,
 			}
-			config := &UnsealConfig{
-				OutputPath: "../demo",
-			}
+			outputPath := "../demo"
 			if tt.errContains == "" {
-				assert.NoError(t, v.Verify(config), fmt.Sprintf("Verify()"))
+				assert.NoError(t, v.Verify(outputPath, "", ""), fmt.Sprintf("Verify()"))
 			} else {
-				assert.ErrorContains(t, v.Verify(config), tt.errContains, fmt.Sprintf("Verify()"))
+				assert.ErrorContains(t, v.Verify(outputPath, "", ""), tt.errContains, fmt.Sprintf("Verify()"))
 			}
 		})
 	}

@@ -3,18 +3,20 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 This project allows the secure bundling of mobile code.
-This means, files and container images can be packed like with any compression tool, but with a focus on the 
+Files and container images can be packed like with any compression tool, but with a focus on the 
 [CIA triad](https://www.f5.com/labs/learning-center/what-is-the-cia-triad).
 In addition, it was designed for flexibility and extensibility, so it can be used in various contexts.
 
 The approach consists of
 * exporting container images in [OCI format](https://github.com/opencontainers/image-spec) to store them alongside files
 * symmetric encryption for [fast and secure encryption](https://www.rfc-editor.org/rfc/rfc7539) of large files with a
-* randomly generated [key sealed](https://www.oracle.com/java/technologies/jpl2-crypto.html) for specific recipients.
+* randomly generated [key sealed](https://www.oracle.com/java/technologies/jpl2-crypto.html) asymmetrically for specific recipients.
 
 The resulting file can then be safely transmitted over insecure channels.
 
-## Basic operation
+Since v1.4.0, Sealpack can also be used as a [go module]
+
+## Basic CLI operation
 
 In a very basic way, `sealpack` is a single-command CLI with the 3 actions `seal`, `inspect`, and `unseal`
 
@@ -198,3 +200,60 @@ Flags:
 | signer-key        | s     | string | n        | y         | -       | Public key of the signing entity.                                                                                                |
 | target-registry   | r     | string | n        | n         | local   | PURL of the target registry to import container images; 'local' imports them to a local containerd service. Defaults to 'local'. |
 | namespace         | n     | string | n        | n         | default | Namespace of the containerd service ti import into. Defaults to 'default'.                                                       |
+
+## Go module
+
+Using as a module is as simple as importing the package and using one ot the methods `sealpack.Seal`, `sealpack.Unseal`, or `sealpack.Inspect`.
+For `Seal` and `Unseal`, there are separate configuration structures available as `sealpack.SealConfig` and `sealpack.UnsealConfig` respectively. 
+
+### Examples
+
+#### Seal
+```go
+    package main
+    
+    import "github.com/innomotics/sealpack"
+
+    sealpack.Seal(&sealpack.SealConfig{
+	    // The private key to sign the contents
+		PrivKeyPath: "/home/foo/.ssh/private.key",
+		// Public keys of the recipients. You must either provide recipient keys or set SealConfig.Public = true
+		RecipientPubKeyPaths: []string{"/home/bar/keys/public.pem"},
+        // You can add files and folders
+		Files: []string{
+			"/etc/fnord/credentials.conf",
+			"../user_data",
+		},
+		// Container images can be added with docker.io defaults or with full image details
+		ImageNames: []string{
+			"alpine:latest",
+			"quay.io/kairos/debian:bookworm-core-amd64-generic-v3.0.0",
+            },
+		},
+		// If SealConfig.Output is set to "-", it will write to stdout
+		Output: "/tmp/output.sealed"
+	})
+```
+
+#### Unseal
+You must provide a public key of the signer. If a sealed package is public, you can omit the private key of the recipient.
+```go
+    package main
+    
+    import "github.com/innomotics/sealpack"
+
+    sealpack.Unseal("/tmp/output.sealed", &sealpack.UnsealConfig{
+        PrivKeyPath: "/home/bar/.ssh/private.key",
+        SigningKeyPath: "/etc/ssh/keys/foo_private.pem",
+        OutputPath: "/tmp/out",
+	})
+```
+#### Inspect
+`sealpack.Inspect` has no config. It only gets the filename of a sealed file as a parameter.
+```go
+    package main
+    
+    import "github.com/innomotics/sealpack"
+
+    sealpack.Inspect("/tmp/output.sealed")
+```

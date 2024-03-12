@@ -1,4 +1,4 @@
-package common
+package internal
 
 /*
  * Sealpack
@@ -38,13 +38,10 @@ const TestFilePath = "../test"
 // /////////////////////
 
 func Test_CreateSigner(t *testing.T) {
-	sealCfg := &SealConfig{
-		HashingAlgorithm: "SHA512",
-		PrivKeyPath:      filepath.Join(filepath.Clean(TestFilePath), "private.pem"),
-	}
-	privKey, err := LoadPrivateKey(sealCfg.PrivKeyPath)
+	privateKeyPath := filepath.Join(filepath.Clean(TestFilePath), "private.pem")
+	privKey, err := LoadPrivateKey(privateKeyPath)
 	assert.Nil(t, err)
-	sig, err := CreateSigner(sealCfg)
+	sig, err := CreateSigner(privateKeyPath)
 	assert.Nil(t, err)
 	assert.NotNil(t, sig)
 	pub, err := sig.PublicKey()
@@ -59,11 +56,8 @@ func Test_CreateSignerAWS(t *testing.T) {
 		assert.Contains(t, uri, "awskms:///")
 		return &aws.SignerVerifier{}, nil
 	}
-	sealCfg := &SealConfig{
-		HashingAlgorithm: "SHA512",
-		PrivKeyPath:      "awskms:///foo:bar:fnord",
-	}
-	sig, err := CreateSigner(sealCfg)
+	privateKeyPath := "awskms:///foo:bar:fnord"
+	sig, err := CreateSigner(privateKeyPath)
 	assert.Nil(t, err)
 	assert.Implements(t, (*signature.Signer)(nil), sig)
 }

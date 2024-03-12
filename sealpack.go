@@ -18,11 +18,34 @@ import (
 	"fmt"
 	"github.com/apex/log"
 	"os"
-	"sealpack/common"
+	"sealpack/internal"
 )
 
+type UnsealConfig struct {
+	PrivKeyPath      string
+	SigningKeyPath   string
+	OutputPath       string
+	HashingAlgorithm string
+	TargetRegistry   string
+	Namespace        string
+}
+
+type SealConfig struct {
+	PrivKeyPath          string
+	RecipientPubKeyPaths []string
+	Public               bool
+	Seal                 bool
+	HashingAlgorithm     string
+	CompressionAlgorithm string
+	ContentFileName      string
+	Files                []string
+	ImageNames           []string
+	Images               []*internal.ContainerImage
+	Output               string
+}
+
 // Seal is the combined command for sealing
-func Seal(sealCfg *common.SealConfig) error {
+func Seal(sealCfg *SealConfig) error {
 	var err error
 
 	// 0 Prepare sealing
@@ -32,23 +55,23 @@ func Seal(sealCfg *common.SealConfig) error {
 	}
 
 	// 1. Create envelope for the resulting file
-	envelope := common.Envelope{
-		HashAlgorithm:   common.GetHashAlgorithm(sealCfg.HashingAlgorithm),
-		CompressionAlgo: common.GetCompressionAlgoIndex(sealCfg.CompressionAlgorithm),
+	envelope := internal.Envelope{
+		HashAlgorithm:   internal.GetHashAlgorithm(sealCfg.HashingAlgorithm),
+		CompressionAlgo: internal.GetCompressionAlgoIndex(sealCfg.CompressionAlgorithm),
 	}
 
 	// 2. Prepare TARget (pun intended) and add files and signatures
 	log.Debug("seal: Bundling WriteArchive")
-	arc := common.CreateArchiveWriter(sealCfg.Public, envelope.CompressionAlgo)
-	signatures := common.NewSignatureList(sealCfg.HashingAlgorithm)
-	if err = arc.AddContents(sealCfg, signatures); err != nil {
+	arc := internal.CreateArchiveWriter(sealCfg.Public, envelope.CompressionAlgo)
+	signatures := internal.NewSignatureList(sealCfg.HashingAlgorithm)
+	if err = arc.AddContents(sealCfg.Files, sealCfg.Images, signatures); err != nil {
 		return err
 	}
-	_ = common.CleanupImages() // Ignore: may not exist if no images have been stored
+	_ = internal.CleanupImages() // Ignore: may not exist if no images have been stored
 
 	// 3. Add TOC and sign it
 	log.Debug("seal: adding TOC")
-	err = arc.AddToc(sealCfg, signatures)
+	err = arc.AddToc(sealCfg.PrivKeyPath, signatures)
 	if err != nil {
 		return fmt.Errorf("seal: failed adding TOC: %v", err)
 	}
@@ -61,14 +84,14 @@ func Seal(sealCfg *common.SealConfig) error {
 	log.Debugf("seal: encrypting %d keys", len(sealCfg.RecipientPubKeyPaths))
 	// Now create encryption key and seal them for all recipients
 	if !sealCfg.Public {
-		if err = common.AddKeys(sealCfg, &envelope, []byte(arc.EncryptionKey)); err != nil {
+		if err = internal.AddKeys(sealCfg.RecipientPubKeyPaths, &envelope, []byte(arc.EncryptionKey)); err != nil {
 			return err
 		}
 	}
 
 	// 5. Write envelope
 	log.Debug("seal: finalize output")
-	out, err := common.NewOutputFile(sealCfg)
+	out, err := internal.NewOutputFile(sealCfg.Output)
 	if err != nil {
 		return err
 	}
@@ -78,7 +101,7 @@ func Seal(sealCfg *common.SealConfig) error {
 	if err = arc.Cleanup(); err != nil {
 		return err
 	}
-	if err = common.CleanupFileWriter(sealCfg, out); err != nil {
+	if err = internal.CleanupFileWriter(sealCfg.Output, out); err != nil {
 		return err
 	}
 	log.Info("seal: successfully finished")
@@ -91,7 +114,7 @@ func Inspect(sealedFile string) error {
 	if err != nil {
 		return err
 	}
-	envelope, err := common.ParseEnvelope(raw)
+	envelope, err := internal.ParseEnvelope(raw)
 	if err != nil {
 		return err
 	}
@@ -100,27 +123,27 @@ func Inspect(sealedFile string) error {
 }
 
 // Unseal is the combined command for unsealing
-func Unseal(sealedFile string, config *common.UnsealConfig) error {
+func Unseal(sealedFile string, config *UnsealConfig) error {
 	log.Debug("unseal: open sealed file")
 	raw, err := os.Open(sealedFile)
 	if err != nil {
 		return err
 	}
 	// Try to parse the envelope
-	envelope, err := common.ParseEnvelope(raw)
+	envelope, err := internal.ParseEnvelope(raw)
 	if err != nil {
 		return err
 	}
-	payload, err := envelope.GetPayload(config)
+	payload, err := envelope.GetPayload(config.PrivKeyPath)
 	if err != nil {
 		return err
 	}
-	archive, err := common.OpenArchiveReader(payload, envelope.CompressionAlgo)
+	archive, err := internal.OpenArchiveReader(payload, envelope.CompressionAlgo)
 	if err != nil {
 		return err
 	}
 	log.Debug("unseal: read contents from archive")
-	err = archive.Unpack(config)
+	err = archive.Unpack(config.SigningKeyPath, config.HashingAlgorithm, config.OutputPath, config.Namespace, config.TargetRegistry)
 	if err != nil {
 		return err
 	}
@@ -129,15 +152,15 @@ func Unseal(sealedFile string, config *common.UnsealConfig) error {
 }
 
 // prepareSealing reads the configuration if provided, converting container image formats, and checking some preconditions
-func prepareSealing(sealCfg *common.SealConfig) error {
+func prepareSealing(sealCfg *SealConfig) error {
 	if sealCfg.ContentFileName != "" {
-		if err := common.ReadConfiguration(sealCfg.ContentFileName, sealCfg); err != nil {
+		if err := internal.ReadConfiguration(sealCfg.ContentFileName, &sealCfg.Files, &sealCfg.Images); err != nil {
 			return fmt.Errorf("invalid configuration file provided")
 		}
 	}
 	if len(sealCfg.ImageNames) > 0 {
 		for _, img := range sealCfg.ImageNames {
-			sealCfg.Images = append(sealCfg.Images, common.ParseContainerImage(img))
+			sealCfg.Images = append(sealCfg.Images, internal.ParseContainerImage(img))
 		}
 	}
 	// public option cannot be used with receiver keys

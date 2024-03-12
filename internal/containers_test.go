@@ -1,4 +1,4 @@
-package common
+package internal
 
 /*
  * Sealpack
@@ -118,8 +118,7 @@ func TestRemoveAll(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config := &UnsealConfig{TargetRegistry: LocalRegistry}
-			tt.wantErr(t, RemoveAll(config, tt.tags), fmt.Sprintf("RemoveAll(%v)", tt.tags))
+			tt.wantErr(t, RemoveAll("", LocalContainerRegistry, tt.tags), fmt.Sprintf("RemoveAll(%v)", tt.tags))
 		})
 	}
 }

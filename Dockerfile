@@ -1,9 +1,9 @@
-FROM golang:1.19-alpine AS builder
+FROM golang:1.21-alpine AS builder
 WORKDIR /app
 COPY *.go go.mod go.sum /app/
 COPY common/ /app/common
 COPY cmd/ /app/cmd
-COPY aws/ /app/aws
+COPY pkg/aws/ /app/aws
 RUN ls -alh
 RUN apk add --no-cache git
 RUN addgroup -S nonroot && adduser -S nonroot -G nonroot

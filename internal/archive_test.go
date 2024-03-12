@@ -1,4 +1,4 @@
-package common
+package internal
 
 /*
  * Sealpack
@@ -225,27 +225,22 @@ func TestGetCompressionAlgoIndex(t *testing.T) {
 
 func TestOpenArchiveReader(t *testing.T) {
 	// Arrange
-	sealCfg := &SealConfig{
-		PrivKeyPath: "../test/private.pem",
-	}
-	sig := NewSignatureList("SHA512")
+	algo := "SHA512"
+	sig := NewSignatureList(algo)
 	arc := CreateArchiveWriter(true, 0)
 	assert.NoError(t, arc.AddToArchive("path/to/foo", []byte("Hold your breath and count to 10.")))
 	assert.NoError(t, sig.AddFile("path/to/foo", []byte("Hold your breath and count to 10.")))
-	assert.NoError(t, arc.AddToc(sealCfg, sig))
+	assert.NoError(t, arc.AddToc("../test/private.pem", sig))
 	b, err := arc.Finalize()
 	assert.NoError(t, err)
 	assert.True(t, b > 10)
 
 	// Act
-	config := &UnsealConfig{
-		SigningKeyPath: "../test/public.pem",
-	}
 	f, err := os.Open(arc.outFile.Name())
 	assert.NoError(t, err)
 	ra, err := OpenArchiveReader(f, 0)
 	assert.NoError(t, err)
-	assert.NoError(t, ra.Unpack(config))
+	assert.NoError(t, ra.Unpack("../test/public.pem", algo, "", "", ""))
 }
 
 func TestReadArchive_InitializeCompression(t *testing.T) {

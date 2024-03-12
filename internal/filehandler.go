@@ -1,4 +1,4 @@
-package common
+package internal
 
 /*
  * Sealpack
@@ -17,7 +17,7 @@ package common
 import (
 	"bytes"
 	"os"
-	"sealpack/aws"
+	"sealpack/internal/aws"
 	"strings"
 )
 
@@ -25,16 +25,16 @@ var uploadS3 = aws.S3UploadArchive
 var stdout = os.Stdout
 
 // WriteFileBytes allows for writing a byte slice to a regular file, S3 bucket or stdout
-func WriteFileBytes(sealCfg *SealConfig, contents []byte) error {
-	if strings.HasPrefix(sealCfg.Output, aws.S3UriPrefix) {
-		return uploadS3(bytes.NewReader(contents), sealCfg.Output)
+func WriteFileBytes(output string, contents []byte) error {
+	if strings.HasPrefix(output, aws.S3UriPrefix) {
+		return uploadS3(bytes.NewReader(contents), output)
 	} else {
 		var of *os.File
 		var err error
-		if sealCfg.Output == "-" {
+		if output == "-" {
 			of = stdout
 		} else {
-			of, err = os.Create(sealCfg.Output)
+			of, err = os.Create(output)
 			if err != nil {
 				return err
 			}
@@ -46,24 +46,24 @@ func WriteFileBytes(sealCfg *SealConfig, contents []byte) error {
 }
 
 // NewOutputFile creates a new output file depending on the type of output target
-func NewOutputFile(sealCfg *SealConfig) (*os.File, error) {
-	if strings.HasPrefix(strings.ToLower(sealCfg.Output), aws.S3UriPrefix) {
+func NewOutputFile(output string) (*os.File, error) {
+	if strings.HasPrefix(strings.ToLower(output), aws.S3UriPrefix) {
 		return os.CreateTemp("", "")
 	}
-	if sealCfg.Output == "-" {
+	if output == "-" {
 		return stdout, nil
 	}
-	return os.Create(sealCfg.Output)
+	return os.Create(output)
 }
 
 // CleanupFileWriter cleans up temporary files and performs post-finish operations
-func CleanupFileWriter(sealCfg *SealConfig, f *os.File) error {
-	if strings.HasPrefix(strings.ToLower(sealCfg.Output), aws.S3UriPrefix) {
+func CleanupFileWriter(output string, f *os.File) error {
+	if strings.HasPrefix(strings.ToLower(output), aws.S3UriPrefix) {
 		tmp, err := os.Open(f.Name())
 		if err != nil {
 			return err
 		}
-		if err = uploadS3(tmp, sealCfg.Output); err != nil {
+		if err = uploadS3(tmp, output); err != nil {
 			return err
 		}
 		return os.Remove(f.Name())

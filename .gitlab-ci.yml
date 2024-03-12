@@ -17,7 +17,7 @@ stages:
 
 unit testing:
   stage: test
-  image: golang:1.19
+  image: golang:1.21
   script:
     - mkdir test && pushd test
     - openssl genrsa -out private1024.pem 1024 && openssl rsa -in private1024.pem -pubout -out public1024.pem
@@ -109,7 +109,7 @@ SBOM validation:
 
 build binary:
   stage: build
-  image: golang:1.19
+  image: golang:1.21
   script:
     - mkdir release
     - go mod tidy
