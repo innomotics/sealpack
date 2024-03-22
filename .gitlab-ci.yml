@@ -5,8 +5,6 @@ variables:
   PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${CI_PROJECT_NAME}/${CI_COMMIT_REF_SLUG}"
   SBOM_FILE: ${CI_PROJECT_NAME}-sbom.json
   SW360_PROJECT_ID: a96e1a7c86114de49901bb6a5c55be88
-  SW360_URL: ${SW360_URL_STAGE}
-  STAGE_NAME: staging
 #  SW360_PROJECT_ID: 9de730f4213d4a1db0b4f864165825fc
 #  SW360_URL: ${SW360_URL_PROD}/api/projects/${SW360_PROJECT_ID}
 
@@ -123,13 +121,18 @@ build binary:
 SBOM to SW360 import:
   stage: release
   needs: ["SBOM validation"]
+  variables:
+    SW360_TOKEN: ${SW360_TOKEN_STAGE}
+    SW360_URL: ${SW360_URL_STAGE}
+    STAGE_NAME: staging
   rules:
     - if: $CI_COMMIT_TAG
       variables:
         SW360_URL: ${SW360_URL_PROD}
+        SW360_TOKEN: ${SW360_TOKEN_PROD}
         STAGE_NAME: production
   image:
-    name: cr.siemens.com/innomotics/shared/clearing/dx360:v0.0.3
+    name: cr.siemens.com/innomotics/shared/clearing/dx360:v0.0.4
     entrypoint: [""]
   script:
     - echo "Uploading SBOM to ${STAGE_NAME} SW360 instance"
