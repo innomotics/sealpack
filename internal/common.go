@@ -17,10 +17,10 @@ package internal
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/innomotics/sealpack/internal/aws"
 	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
-	"sealpack/internal/aws"
 	"strings"
 )
 

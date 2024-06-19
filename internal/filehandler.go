@@ -16,8 +16,9 @@ package internal
 
 import (
 	"bytes"
+	"github.com/innomotics/sealpack/internal/aws"
+	"io"
 	"os"
-	"sealpack/internal/aws"
 	"strings"
 )
 
@@ -29,7 +30,7 @@ func WriteFileBytes(output string, contents []byte) error {
 	if strings.HasPrefix(output, aws.S3UriPrefix) {
 		return uploadS3(bytes.NewReader(contents), output)
 	} else {
-		var of *os.File
+		var of io.ReadWriteCloser
 		var err error
 		if output == "-" {
 			of = stdout
@@ -66,7 +67,7 @@ func CleanupFileWriter(output string, f *os.File) error {
 		if err = uploadS3(tmp, output); err != nil {
 			return err
 		}
-		return os.Remove(f.Name())
+		return os.RemoveAll(f.Name())
 	}
 	return nil
 }

@@ -18,9 +18,9 @@ import (
 	"context"
 	"github.com/apex/log"
 	jsonHandler "github.com/apex/log/handlers/json"
+	"github.com/innomotics/sealpack"
 	"github.com/spf13/cobra"
 	"os"
-	"sealpack"
 )
 
 type CommandConfig struct {

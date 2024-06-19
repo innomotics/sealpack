@@ -17,8 +17,8 @@ package sealpack
 import (
 	"fmt"
 	"github.com/apex/log"
+	"github.com/innomotics/sealpack/internal"
 	"os"
-	"sealpack/internal"
 )
 
 type UnsealConfig struct {
