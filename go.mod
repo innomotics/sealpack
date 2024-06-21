@@ -1,17 +1,17 @@
 module github.com/innomotics/sealpack
 
-go 1.22.3
+go 1.22.2
 
 require (
 	github.com/apex/log v1.9.0
-	github.com/aws/aws-sdk-go v1.54.4
+	github.com/aws/aws-sdk-go v1.54.6
 	github.com/containerd/containerd v1.7.18
 	github.com/google/go-containerregistry v0.19.2
 	github.com/klauspost/compress v1.17.9
 	github.com/ovh/symmecrypt v0.6.0
 	github.com/sigstore/sigstore v1.8.4
 	github.com/sigstore/sigstore/pkg/signature/kms/aws v1.8.4
-	github.com/spf13/cobra v1.8.0
+	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.9.0
 	gopkg.in/yaml.v3 v3.0.1
 )
