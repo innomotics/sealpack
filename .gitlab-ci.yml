@@ -80,12 +80,6 @@ repolinter check:
 
 SBOM creation:
   extends: .SBOM_scanner_golang
-  script:
-    - cyclonedx-gomod app -assert-licenses -json -licenses -output-version 1.4 -output plain-sbom.json -main cmd
-    - /add-tools-entry.sh plain-sbom.json temp-sbom.json
-    - jq '.metadata.properties[.metadata.properties| length] |= . + {"name":"siemens:profile","value":"clearing"}' temp-sbom.json > temp2-sbom.json
-    - /add-sources.sh temp2-sbom.json ${SBOM_FILE}
-
 
 build binary:
   stage: build
