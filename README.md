@@ -57,9 +57,9 @@ On the receiver side, unsealing, verification, unpacking and importing is also a
 
 ## Build & Install
 
-To build the CLI binary, spin up a bash and run:
+To build the CLI binary run:
 ```bash
-./build.sh
+make build
 ```
 
 The `sealpack` binary now includes everything needed to be used. Consider moving it to a place at system's `PATH`.
