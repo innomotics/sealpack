@@ -196,8 +196,8 @@ Flags:
 | hashing-algorithm | a     | string | n        | n         | SHA512  | Name of algorithm to be used for signature hashing. Valid values must implement `crypto.Hash`.                                   |
 | help              | h     | -      | -        | -         | -       | Flag to display help message. Exits instantly.                                                                                   |
 | output            | o     | string | n        | n         | -       | Filename to store the resulting sealed file in. Defaults to current directory.                                                   |
-| privkey           | p     | string | n        | n         | -       | Path to the private signing key or AWS KMS keys can be used with `awskms:///` prefix. PEM-based PKCS1, PKCS8 are valid.          |
-| signer-key        | s     | string | n        | y         | -       | Public key of the signing entity.                                                                                                |
+| privkey           | p     | string | n        | n         | -       | Path to the private signing key. PEM-based PKCS1, PKCS8 are valid.                                                               |
+| signer-key        | s     | string | n        | y         | -       | Path to the Public key of the signing entity or AWS KMS keys can be used with `awskms:///` prefix                                |
 | target-registry   | r     | string | n        | n         | local   | PURL of the target registry to import container images; 'local' imports them to a local containerd service. Defaults to 'local'. |
 | namespace         | n     | string | n        | n         | default | Namespace of the containerd service ti import into. Defaults to 'default'.                                                       |
 
