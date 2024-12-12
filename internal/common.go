@@ -24,7 +24,10 @@ import (
 	"strings"
 )
 
-var createKmsSigner = aws.CreateKmsSigner
+var (
+	createKmsSigner   = aws.CreateKmsSigner
+	createKmsVerifier = aws.CreateKmsVerifier
+)
 
 const (
 	DefaultRegistry = "docker.io"
