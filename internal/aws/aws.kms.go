@@ -25,3 +25,9 @@ func CreateKmsSigner(uri string) (signature.Signer, error) {
 	verifyAwsSession()
 	return kmssigner.LoadSignerVerifier(context.Background(), uri)
 }
+
+// CreateKmsVerifier creates a verifier instance from a KMS ARN
+func CreateKmsVerifier(uri string) (signature.Verifier, error) {
+	verifyAwsSession()
+	return kmssigner.LoadSignerVerifier(context.Background(), uri)
+}

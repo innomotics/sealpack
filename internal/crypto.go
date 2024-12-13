@@ -36,12 +36,20 @@ type Signer struct {
 	Signer *signature.SignerVerifier
 }
 
-// CreateSigner cheese the correct signature.Signer depending on the private key string
+// CreateSigner chooses the correct signature.Signer depending on the private key string
 func CreateSigner(privateKeyPath string) (signature.Signer, error) {
 	if strings.HasPrefix(privateKeyPath, "awskms:///") {
 		return createKmsSigner(privateKeyPath)
 	}
 	return CreatePKISigner(privateKeyPath)
+}
+
+// CreateVerifier chooses the correct signature.Verifier depending on the private key string
+func CreateVerifier(publicKeyPath string) (signature.Verifier, error) {
+	if strings.HasPrefix(publicKeyPath, "awskms:///") {
+		return createKmsVerifier(publicKeyPath)
+	}
+	return CreatePKIVerifier(publicKeyPath)
 }
 
 // LoadPublicKey reads and parses a public key from a file

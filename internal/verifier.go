@@ -26,7 +26,7 @@ type Verifier struct {
 func NewVerifier(signingKeyPath, hashingAlgorithm string) (*Verifier, error) {
 	var err error
 	v := &Verifier{}
-	v.sigVerifier, err = CreatePKIVerifier(signingKeyPath)
+	v.sigVerifier, err = CreateVerifier(signingKeyPath)
 	if err != nil {
 		return nil, err
 	}
