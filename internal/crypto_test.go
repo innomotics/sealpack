@@ -17,7 +17,6 @@ package internal
 import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
-	"crypto/rand"
 	"crypto/rsa"
 	"github.com/ovh/symmecrypt"
 	"github.com/ovh/symmecrypt/ciphers/xchacha20poly1305"
@@ -53,7 +52,7 @@ func Test_CreateSignerAWS(t *testing.T) {
 	old := createKmsSigner
 	defer func() { createKmsSigner = old }()
 	createKmsSigner = func(uri string) (signature.Signer, error) {
-		assert.Contains(t, uri, "awskms:///")
+		assert.Contains(t, uri, KmsPrefix)
 		return &aws.SignerVerifier{}, nil
 	}
 	privateKeyPath := "awskms:///foo:bar:fnord"
@@ -179,9 +178,9 @@ func Test_EncryptDecrypt(t *testing.T) {
 	// 1. Arrange
 	pubKeyPath := filepath.Join(filepath.Clean("../test"), "public.pem")
 	privateKeyPath := filepath.Join(filepath.Clean("../test"), "private.pem")
-	pubKey, err := LoadPublicKey(pubKeyPath)
+	encrypter, err := GetEncrypter(pubKeyPath)
 	assert.Nil(t, err)
-	privKey, err := LoadPrivateKey(privateKeyPath)
+	decrypter, err := GetDecrypter(privateKeyPath)
 	assert.Nil(t, err)
 
 	// 2. Act
@@ -189,10 +188,10 @@ func Test_EncryptDecrypt(t *testing.T) {
 	// Encrypt Contents, then seal key ...
 	encrypted, symKey, err := Encrypt(contentsOriginal)
 	assert.NoError(t, err)
-	encKey, err := rsa.EncryptPKCS1v15(rand.Reader, pubKey.(*rsa.PublicKey), symKey)
+	encKey, err := encrypter.EncryptMessage(symKey)
 	assert.NoError(t, err)
 	// ... aaaand directly decrypt back
-	keyDecrypted, err := TryUnsealKey(encKey, privKey.(*rsa.PrivateKey))
+	keyDecrypted, err := TryUnsealKey(encKey, decrypter)
 	assert.NoError(t, err)
 	contentsDecrypted, err := keyDecrypted.Decrypt(encrypted)
 	assert.NoError(t, err)
@@ -217,10 +216,10 @@ func Test_DecryptInvalidContents(t *testing.T) {
 }
 func Test_DecryptInvalidKey(t *testing.T) {
 	pubKeyPath := filepath.Join(filepath.Clean("../test"), "public.pem")
-	pubKey, err := LoadPublicKey(pubKeyPath)
+	encrypter, err := GetEncrypter(pubKeyPath)
 	assert.Nil(t, err)
 	privKeyPath := filepath.Join(filepath.Clean("../test"), "private.pem")
-	privKey, err := LoadPrivateKey(privKeyPath)
+	decrypter, err := GetDecrypter(privKeyPath)
 	assert.Nil(t, err)
 
 	// create new random key, Encrypt it and attach
@@ -230,29 +229,29 @@ func Test_DecryptInvalidKey(t *testing.T) {
 		false,
 		time.Now(),
 	)
-	encKey, err := rsa.EncryptPKCS1v15(rand.Reader, pubKey.(*rsa.PublicKey), []byte(keyConfig.String()))
+	encKey, err := encrypter.EncryptMessage([]byte(keyConfig.String()))
 	assert.NoError(t, err)
 
 	// Decryption
-	result, err := TryUnsealKey(encKey, privKey.(*rsa.PrivateKey))
+	result, err := TryUnsealKey(encKey, decrypter)
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "unable to create AEAD key")
 
 }
 func Test_DecryptDamagedKey(t *testing.T) {
 	pubKeyPath := filepath.Join(filepath.Clean("../test"), "public.pem")
-	pubKey, err := LoadPublicKey(pubKeyPath)
+	encrypter, err := GetEncrypter(pubKeyPath)
 	assert.Nil(t, err)
 	privKeyPath := filepath.Join(filepath.Clean("../test"), "private.pem")
-	privKey, err := LoadPrivateKey(privKeyPath)
+	decrypter, err := GetDecrypter(privKeyPath)
 	assert.Nil(t, err)
 	_, key, err := Encrypt([]byte("This is the end."))
 	assert.NoError(t, err)
-	enc, err := rsa.EncryptPKCS1v15(rand.Reader, pubKey.(*rsa.PublicKey), key)
+	enc, err := encrypter.EncryptMessage(key)
 	assert.Nil(t, err)
 
 	// Decryption
-	result, err := TryUnsealKey(enc[:len(enc)-5], privKey.(*rsa.PrivateKey))
+	result, err := TryUnsealKey(enc[:len(enc)-5], decrypter)
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "decryption error")
 }

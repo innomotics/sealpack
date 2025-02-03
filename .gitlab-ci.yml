@@ -1,5 +1,5 @@
 include:
-  - project: 'innomotics/shared/clearing/automation'
+  - project: 'in/shared/clearing/automation'
     file: '/gitlab/sw360.yaml'
 
 variables:

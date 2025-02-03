@@ -18,10 +18,12 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/innomotics/sealpack/internal/aws"
 	"github.com/ovh/symmecrypt"
 	"github.com/ovh/symmecrypt/ciphers/xchacha20poly1305"
 	"github.com/ovh/symmecrypt/keyloader"
@@ -32,13 +34,99 @@ import (
 	"time"
 )
 
-type Signer struct {
-	Signer *signature.SignerVerifier
+const KmsPrefix = "awskms:///"
+
+// Encrypter interface to encrypt messages
+type Encrypter interface {
+	EncryptMessage(message []byte) ([]byte, error)
+	KeySize() int
+}
+
+// RSAEncrypter implements Encrypter interface with RSA keys
+type RSAEncrypter struct {
+	pubKey *rsa.PublicKey
+}
+
+// EncryptMessage encrypts a message using RSA
+func (enc *RSAEncrypter) EncryptMessage(message []byte) ([]byte, error) {
+	return rsa.EncryptOAEP(sha256.New(), rand.Reader, enc.pubKey, message, nil)
+}
+
+// KeySize provides the length of an RSA key
+func (enc *RSAEncrypter) KeySize() int {
+	return enc.pubKey.Size()
+}
+
+// NewRSAEncrypter creates an instance of an RSAEncrypter
+func NewRSAEncrypter(keyPath string) (*RSAEncrypter, error) {
+	var err error
+	var plainKey crypto.PublicKey
+	if plainKey, err = LoadPublicKey(keyPath); err != nil {
+		return nil, err
+	}
+	if recPubKey, ok := plainKey.(*rsa.PublicKey); ok {
+		return &RSAEncrypter{
+			pubKey: recPubKey,
+		}, nil
+	}
+	return nil, fmt.Errorf("RSAEncrypter: not RSA public key")
+}
+
+// GetEncrypter provides a new Encrypter instance
+func GetEncrypter(path string) (Encrypter, error) {
+	if strings.HasPrefix(path, KmsPrefix) {
+		return aws.NewKMSEncrypter(strings.TrimPrefix(path, KmsPrefix))
+	}
+	return NewRSAEncrypter(path)
+}
+
+// Decrypter interface to decrypt messages
+type Decrypter interface {
+	DecryptMessage(message []byte) ([]byte, error)
+	KeySize() int
+}
+
+// RSADecrypter implements Decrypter interface with RSA keys
+type RSADecrypter struct {
+	privKey *rsa.PrivateKey
+}
+
+// DecryptMessage encrypts a message using RSA
+func (dec *RSADecrypter) DecryptMessage(cyphertext []byte) ([]byte, error) {
+	return rsa.DecryptOAEP(sha256.New(), rand.Reader, dec.privKey, cyphertext, nil)
+}
+
+// KeySize provides the length of an RSA key
+func (dec *RSADecrypter) KeySize() int {
+	return dec.privKey.Size()
+}
+
+// NewRSADecrypter creates an instance of an RSADecrypter
+func NewRSADecrypter(keyPath string) (*RSADecrypter, error) {
+	var err error
+	var plainKey crypto.PrivateKey
+	if plainKey, err = LoadPrivateKey(keyPath); err != nil {
+		return nil, err
+	}
+	if recPrivKey, ok := plainKey.(*rsa.PrivateKey); ok {
+		return &RSADecrypter{
+			privKey: recPrivKey,
+		}, nil
+	}
+	return nil, fmt.Errorf("RSAEncrypter: not RSA private key")
+}
+
+// GetDecrypter provides a new Decrypter instance
+func GetDecrypter(path string) (Decrypter, error) {
+	if strings.HasPrefix(path, KmsPrefix) {
+		return aws.NewKMSDecrypter(strings.TrimPrefix(path, KmsPrefix))
+	}
+	return NewRSADecrypter(path)
 }
 
 // CreateSigner chooses the correct signature.Signer depending on the private key string
 func CreateSigner(privateKeyPath string) (signature.Signer, error) {
-	if strings.HasPrefix(privateKeyPath, "awskms:///") {
+	if strings.HasPrefix(privateKeyPath, KmsPrefix) {
 		return createKmsSigner(privateKeyPath)
 	}
 	return CreatePKISigner(privateKeyPath)
@@ -46,7 +134,7 @@ func CreateSigner(privateKeyPath string) (signature.Signer, error) {
 
 // CreateVerifier chooses the correct signature.Verifier depending on the private key string
 func CreateVerifier(publicKeyPath string) (signature.Verifier, error) {
-	if strings.HasPrefix(publicKeyPath, "awskms:///") {
+	if strings.HasPrefix(publicKeyPath, KmsPrefix) {
 		return createKmsVerifier(publicKeyPath)
 	}
 	return CreatePKIVerifier(publicKeyPath)
@@ -158,8 +246,8 @@ func EncryptWriter(w io.Writer) (string, io.WriteCloser) {
 }
 
 // TryUnsealKey loads a key from JSON without configstore
-func TryUnsealKey(encrypted []byte, rsaKey *rsa.PrivateKey) (symmecrypt.Key, error) {
-	keyBytes, err := rsa.DecryptPKCS1v15(rand.Reader, rsaKey, encrypted)
+func TryUnsealKey(encrypted []byte, decrypter Decrypter) (symmecrypt.Key, error) {
+	keyBytes, err := decrypter.DecryptMessage(encrypted)
 	if err != nil {
 		return nil, err
 	}
@@ -169,22 +257,19 @@ func TryUnsealKey(encrypted []byte, rsaKey *rsa.PrivateKey) (symmecrypt.Key, err
 // AddKeys encrypts the symmetric key for every receiver and attaches them to the envelope
 func AddKeys(recipientPubKeyPaths []string, envelope *Envelope, plainKey []byte) error {
 	var err error
+	var encrypter Encrypter
 	envelope.ReceiverKeys = [][]byte{}
 	envelope.ReceiverKeys = make([][]byte, len(recipientPubKeyPaths))
 	for iKey, recipientPubKeyPath := range recipientPubKeyPaths {
-		var recPubKey crypto.PublicKey
-		if recPubKey, err = LoadPublicKey(recipientPubKeyPath); err != nil {
+		encrypter, err = GetEncrypter(recipientPubKeyPath)
+		if err != nil {
 			return err
 		}
-		if key, ok := recPubKey.(*rsa.PublicKey); ok {
-			if envelope.ReceiverKeys[iKey], err = rsa.EncryptPKCS1v15(rand.Reader, key, plainKey); err != nil {
-				return err
-			}
-			if len(envelope.ReceiverKeys[iKey]) != key.Size() {
-				return fmt.Errorf("key size must be %d bits", key.Size())
-			}
-		} else {
-			return fmt.Errorf("encryption key %d cannot be used for encryption. Please provide a valid RSA public key", iKey+1)
+		if envelope.ReceiverKeys[iKey], err = encrypter.EncryptMessage(plainKey); err != nil {
+			return err
+		}
+		if len(envelope.ReceiverKeys[iKey]) != encrypter.KeySize() {
+			return fmt.Errorf("key size must be %d bits", encrypter.KeySize())
 		}
 	}
 	return nil
