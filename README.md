@@ -42,6 +42,9 @@ The prerequisite for a fully featured usage of `sealpack` is every entity having
 
 > (!) Private keys must never be shared, use files with the least access permissions possible.
 
+Alternatively, `sealpack` supports using [_AWS KMS_](https://aws.amazon.com/de/kms/) keys.
+If you add an `awskms:///` prefix to your key, it is evaluated as such. 
+
 A mutual trust must be established by exchanging the public Keys. This means, the sender must have access to all public 
 keys of potential receivers and each receiver must have access to the public key of the sender.
 

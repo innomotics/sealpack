@@ -19,7 +19,6 @@ import (
 	"bufio"
 	"bytes"
 	"crypto"
-	"crypto/rsa"
 	"encoding/binary"
 	"fmt"
 	"github.com/apex/log"
@@ -209,18 +208,14 @@ func (e *Envelope) GetPayload(privateKeyPath string) (payload io.Reader, err err
 	} else {
 		log.Infof("unseal: read archive sealed for %d receivers", len(e.ReceiverKeys))
 		// Try to find a key that can be decrypted with the provided private key
-		var pKey interface{}
-		pKey, err = LoadPrivateKey(privateKeyPath)
+		var decrypter Decrypter
+		decrypter, err = GetDecrypter(privateKeyPath)
 		if err != nil {
-			return
-		}
-		decryptionKey, ok := pKey.(*rsa.PrivateKey)
-		if !ok {
 			return nil, fmt.Errorf("could not use provided private key for decryption")
 		}
 		var symKey symmecrypt.Key
 		for _, key := range e.ReceiverKeys {
-			symKey, err = TryUnsealKey(key, decryptionKey)
+			symKey, err = TryUnsealKey(key, decrypter)
 			if err == nil {
 				break
 			}

@@ -92,7 +92,7 @@ func ParseCommands() error {
 
 	rootCmd.AddCommand(sealCmd)
 	sealCmd.Flags().StringVarP(&conf.Seal.PrivKeyPath, "privkey", "p", "", "Path to the private signing key. AWS KMS keys can be used with awskms:/// prefix")
-	sealCmd.Flags().StringSliceVarP(&conf.Seal.RecipientPubKeyPaths, "recipient-pubkey", "r", make([]string, 0), "Paths of recipients' public keys")
+	sealCmd.Flags().StringSliceVarP(&conf.Seal.RecipientPubKeyPaths, "recipient-pubkey", "r", make([]string, 0), "Paths of recipients' public keys. AWS KMS keys can be used with awskms:/// prefix")
 	sealCmd.Flags().StringVarP(&conf.Seal.Output, "output", "o", "", "Filename to store the result in")
 	_ = sealCmd.MarkFlagRequired("privkey")
 	_ = sealCmd.MarkFlagRequired("output")
