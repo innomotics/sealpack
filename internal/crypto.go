@@ -92,8 +92,8 @@ type RSADecrypter struct {
 }
 
 // DecryptMessage encrypts a message using RSA
-func (dec *RSADecrypter) DecryptMessage(cyphertext []byte) ([]byte, error) {
-	return rsa.DecryptOAEP(sha256.New(), rand.Reader, dec.privKey, cyphertext, nil)
+func (dec *RSADecrypter) DecryptMessage(ciphertext []byte) ([]byte, error) {
+	return rsa.DecryptOAEP(sha256.New(), nil, dec.privKey, ciphertext, nil)
 }
 
 // KeySize provides the length of an RSA key
