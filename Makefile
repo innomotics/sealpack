@@ -23,6 +23,12 @@ confirm:
 no-dirty:
 	git diff --exit-code
 
+.PHONY: upgrade-dependencies
+upgrade-dependencies:
+	go get -u all
+	go mod tidy -v
+	go test ./...
+
 # ==================================================================================== #
 # QUALITY CONTROL
 # ==================================================================================== #
@@ -32,6 +38,7 @@ no-dirty:
 tidy:
 	go fmt ./...
 	go mod tidy -v
+	go test ./...
 
 ## audit: run quality control checks
 .PHONY: audit
