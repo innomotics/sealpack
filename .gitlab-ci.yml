@@ -119,4 +119,5 @@ create docker image:
     - if: $CI_COMMIT_TAG
       variables:
         IMAGE_NAME: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_TAG}
+      when: always
   extends: .inbuild
