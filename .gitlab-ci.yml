@@ -1,6 +1,8 @@
 include:
   - project: 'in/shared/clearing/automation'
     file: '/gitlab/sw360.yaml'
+  - project: in/shared/tools/inbuild
+    file: gitlab.yaml
 
 variables:
   PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${CI_PROJECT_NAME}/${CI_COMMIT_REF_SLUG}"
@@ -109,19 +111,12 @@ create generic package:
 create docker image:
   stage: release
   variables:
-    IMAGE_TAG: "latest"
+    IMAGE_NAME: "${CI_REGISTRY_IMAGE}:latest"
+    BUILD_ARGS:
+      http_proxy=${CODE_PROXY}
+      https_proxy=${CODE_PROXY}
   rules:
     - if: $CI_COMMIT_TAG
       variables:
-        IMAGE_TAG: $CI_COMMIT_TAG
-  image:
-    name: gcr.io/kaniko-project/executor:debug
-    entrypoint: [""]
-  script:
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor --context $CI_PROJECT_DIR 
-      --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
-      --destination ${CI_REGISTRY_IMAGE}:${IMAGE_TAG}
-      --build-arg http_proxy=${CODE_PROXY}
-      --build-arg https_proxy=${CODE_PROXY}
+        IMAGE_NAME: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_TAG}
+  extends: .inbuild
