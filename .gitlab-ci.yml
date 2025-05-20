@@ -109,7 +109,7 @@ create generic package:
     - 'curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file release/${CI_PROJECT_NAME} ${PACKAGE_REGISTRY_URL}/${CI_PROJECT_NAME}'
 
 create docker image:
-  extends: .inbuild
+  stage: release
   variables:
     IMAGE_NAME: "${CI_REGISTRY_IMAGE}:latest"
     BUILD_ARGS:
@@ -119,4 +119,4 @@ create docker image:
     - if: $CI_COMMIT_TAG
       variables:
         IMAGE_NAME: ${CI_REGISTRY_IMAGE}:${CI_COMMIT_TAG}
-  stage: release
+  extends: .inbuild
