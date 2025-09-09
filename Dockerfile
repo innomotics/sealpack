@@ -1,4 +1,6 @@
-FROM golang:1.24-alpine AS builder
+ARG BASE_IMAGE
+
+FROM ${BASE_IMAGE} AS builder
 WORKDIR /app
 COPY *.go go.mod go.sum /app/
 COPY internal/ /app/internal
