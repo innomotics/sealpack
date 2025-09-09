@@ -16,11 +16,12 @@ package aws
 
 import (
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"io"
 	"strings"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 const (
@@ -34,13 +35,16 @@ type S3Uri struct {
 }
 
 // s3Session represents the AWS S3 Session.
-var s3Session *s3.S3
+var (
+	s3Session *s3.Client
+	s3pc      *s3.PresignClient
+)
 
 // verifyS3Session
 func verifyS3Session() {
-	verifyAwsSession()
 	if s3Session == nil {
-		s3Session = s3.New(sess)
+		s3Session = s3.New(s3.Options{})
+		s3pc = s3.NewPresignClient(s3Session)
 	}
 }
 
@@ -50,7 +54,7 @@ func S3DownloadResource(uri string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	objectOut, err := s3Session.GetObject(&s3.GetObjectInput{
+	objectOut, err := s3Session.GetObject(awsCtx, &s3.GetObjectInput{
 		Bucket: s3uri.Bucket,
 		Key:    s3uri.Key,
 	})
@@ -66,11 +70,16 @@ func S3CreatePresignedDownload(uri string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	req, _ := s3Session.GetObjectRequest(&s3.GetObjectInput{
+	req, err := s3pc.PresignGetObject(awsCtx, &s3.GetObjectInput{
 		Bucket: s3uri.Bucket,
 		Key:    s3uri.Key,
+	}, func(opts *s3.PresignOptions) {
+		opts.Expires = PresignValidDuration
 	})
-	return req.Presign(PresignValidDuration)
+	if err != nil {
+		return "", err
+	}
+	return req.URL, nil
 }
 
 // S3UploadArchive uploads the byte slice of the archive to S3.
@@ -80,7 +89,7 @@ func S3UploadArchive(reader io.ReadSeeker, uri string) error {
 	if err != nil {
 		return err
 	}
-	_, err = s3Session.PutObject(&s3.PutObjectInput{
+	_, err = s3Session.PutObject(awsCtx, &s3.PutObjectInput{
 		Bucket: s3uri.Bucket,
 		Key:    s3uri.Key,
 		Body:   reader,

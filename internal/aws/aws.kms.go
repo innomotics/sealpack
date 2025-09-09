@@ -17,9 +17,11 @@ package aws
 import (
 	"context"
 	"fmt"
+
 	"github.com/apex/log"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/kms"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
+	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/sigstore/sigstore/pkg/signature"
 	kmssigner "github.com/sigstore/sigstore/pkg/signature/kms/aws"
 )
@@ -31,7 +33,7 @@ import (
 // KMSCryptoClient is the container for the KMS Key
 type KMSCryptoClient struct {
 	KeyID      string
-	kmsSession *kms.KMS
+	kmsSession *kms.Client
 	pubKey     *kms.GetPublicKeyOutput
 }
 
@@ -39,7 +41,7 @@ type KMSCryptoClient struct {
 func (enc *KMSCryptoClient) getPubKey() (*kms.GetPublicKeyOutput, error) {
 	var err error
 	if enc.pubKey == nil {
-		enc.pubKey, err = enc.kmsSession.GetPublicKey(&kms.GetPublicKeyInput{
+		enc.pubKey, err = enc.kmsSession.GetPublicKey(awsCtx, &kms.GetPublicKeyInput{
 			KeyId: aws.String(enc.KeyID),
 		})
 		if err != nil {
@@ -56,18 +58,18 @@ func (enc *KMSCryptoClient) CanEncrypt() bool {
 		return false
 	}
 	log.Debugf("%v\n", pubKey)
-	return *pubKey.KeyUsage == kms.KeyUsageTypeEncryptDecrypt
+	return pubKey.KeyUsage == types.KeyUsageTypeEncryptDecrypt
 }
 
 // KeySize returns the key length in bytes
 func (enc *KMSCryptoClient) KeySize() int {
 	if pubKey, err := enc.getPubKey(); err == nil {
-		switch *pubKey.KeySpec {
-		case kms.KeySpecRsa2048:
+		switch pubKey.KeySpec {
+		case types.KeySpecRsa2048:
 			return 256
-		case kms.KeySpecRsa3072:
+		case types.KeySpecRsa3072:
 			return 384
-		case kms.KeySpecRsa4096:
+		case types.KeySpecRsa4096:
 			return 512
 		}
 	}
@@ -81,9 +83,9 @@ type KMSEncrypter struct {
 
 // EncryptMessage using the KMS API
 func (enc *KMSEncrypter) EncryptMessage(message []byte) ([]byte, error) {
-	out, err := enc.kmsSession.Encrypt(&kms.EncryptInput{
+	out, err := enc.kmsSession.Encrypt(awsCtx, &kms.EncryptInput{
 		Plaintext:           message,
-		EncryptionAlgorithm: aws.String(kms.EncryptionAlgorithmSpecRsaesOaepSha256),
+		EncryptionAlgorithm: types.EncryptionAlgorithmSpecRsaesOaepSha256,
 		KeyId:               aws.String(enc.KeyID),
 	})
 	if err != nil {
@@ -94,11 +96,10 @@ func (enc *KMSEncrypter) EncryptMessage(message []byte) ([]byte, error) {
 
 // NewKMSEncrypter generatea a new KMSEncrypter instance
 func NewKMSEncrypter(keyID string) (*KMSEncrypter, error) {
-	verifyAwsSession()
 	enc := &KMSEncrypter{
 		KMSCryptoClient: KMSCryptoClient{
 			KeyID:      keyID,
-			kmsSession: kms.New(sess),
+			kmsSession: kms.New(kms.Options{}),
 		},
 	}
 	if !enc.CanEncrypt() {
@@ -114,9 +115,9 @@ type KMSDecrypter struct {
 
 // DecryptMessage decrypts a message using the KMS API
 func (dec *KMSDecrypter) DecryptMessage(message []byte) ([]byte, error) {
-	out, err := dec.kmsSession.Decrypt(&kms.DecryptInput{
+	out, err := dec.kmsSession.Decrypt(awsCtx, &kms.DecryptInput{
 		CiphertextBlob:      message,
-		EncryptionAlgorithm: aws.String(kms.EncryptionAlgorithmSpecRsaesOaepSha256),
+		EncryptionAlgorithm: types.EncryptionAlgorithmSpecRsaesOaepSha256,
 		KeyId:               aws.String(dec.KeyID),
 	})
 	if err != nil {
@@ -127,11 +128,10 @@ func (dec *KMSDecrypter) DecryptMessage(message []byte) ([]byte, error) {
 
 // NewKMSDecrypter generates a new KMSDecrypter instance
 func NewKMSDecrypter(keyID string) (*KMSDecrypter, error) {
-	verifyAwsSession()
 	dec := &KMSDecrypter{
 		KMSCryptoClient: KMSCryptoClient{
 			KeyID:      keyID,
-			kmsSession: kms.New(sess),
+			kmsSession: kms.New(kms.Options{}),
 		},
 	}
 	if !dec.CanEncrypt() {
@@ -146,12 +146,10 @@ func NewKMSDecrypter(keyID string) (*KMSDecrypter, error) {
 
 // CreateKmsSigner creates a signer instance from a KMS ARN
 func CreateKmsSigner(uri string) (signature.Signer, error) {
-	verifyAwsSession()
 	return kmssigner.LoadSignerVerifier(context.Background(), uri)
 }
 
 // CreateKmsVerifier creates a verifier instance from a KMS ARN
 func CreateKmsVerifier(uri string) (signature.Verifier, error) {
-	verifyAwsSession()
 	return kmssigner.LoadSignerVerifier(context.Background(), uri)
 }

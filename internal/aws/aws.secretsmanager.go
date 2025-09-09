@@ -16,18 +16,18 @@ package aws
 
 import (
 	"encoding/base64"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 )
 
 // smSession represents the AWS Secrets Manager Session.
-var smSession *secretsmanager.SecretsManager
+var smSession *secretsmanager.Client
 
 // verifyEcrSession test if session is available and if not, create a new one.
 func verifySmSession() {
-	verifyAwsSession()
 	if smSession == nil {
-		smSession = secretsmanager.New(sess)
+		smSession = secretsmanager.New(secretsmanager.Options{})
 	}
 }
 
@@ -35,7 +35,7 @@ func verifySmSession() {
 // In Secrets Manager it is stored base64-encoded, so it gets decoded and returned as binary byte slice.
 func GetEncryptionKey(secretName string) ([]byte, error) {
 	verifySmSession()
-	result, err := smSession.GetSecretValue(&secretsmanager.GetSecretValueInput{
+	result, err := smSession.GetSecretValue(awsCtx, &secretsmanager.GetSecretValueInput{
 		SecretId: aws.String(secretName),
 	})
 	if err != nil {
