@@ -105,7 +105,6 @@ create debian packages:
   needs: ["build binary"]
   script:
     - |
-      ls -alh
       mkdir -p debian
       # amd64
       cp release/${CI_PROJECT_NAME} debian/
