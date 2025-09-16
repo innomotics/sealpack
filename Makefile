@@ -1,7 +1,11 @@
 # Change these variables as necessary.
 MAIN_PACKAGE_PATH := ./cmd/
 BUILD_DIR ?= .
+GOARCH ?= amd64
 BINARY_NAME := sealpack
+DEBIAN_DIR := $(shell pwd)/debian
+DOCKER := podman
+FPM_IMAGE := registry.alm.innomotics.net/in/shared/clearing/automation/fpm:latest
 
 default_target: build
 
@@ -54,11 +58,37 @@ audit:
 # DEVELOPMENT
 # ==================================================================================== #
 
+
 ## build: build the application
 .PHONY: build
-build:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o=${BUILD_DIR}/${BINARY_NAME} ${MAIN_PACKAGE_PATH}
+build: build-arm64 build-amd64
 
+## build: build the application
+.PHONY: build-%
+build-%:
+	CGO_ENABLED=0 GOOS=linux GOARCH=$* go build -ldflags="-w -s" -o=${BUILD_DIR}/${BINARY_NAME} ${MAIN_PACKAGE_PATH}
+
+.PHONY: debian
+debian: debian-arm64 debian-amd64
+
+.PHONY: debian-%
+debian-%: build-%
+	@mkdir -p $(DEBIAN_DIR)/{src,out}
+	@cp ${BUILD_DIR}/${BINARY_NAME} $(DEBIAN_DIR)/src
+	$(DOCKER) run -v $(DEBIAN_DIR)/src:/src \
+				-v $(DEBIAN_DIR)/out:/out \
+  				-it $(FPM_IMAGE) \
+  				-s dir \
+  				-t deb \
+  				--name sealpack \
+  				--license apache2.0 \
+  				--version $(shell git describe --abbrev=0) \
+  				--architecture $(if $(filter-out amd64,$*),$*,x86_64) \
+  				--description "Sealed packaging for files and containers" \
+  				--url "https://github.com/innomotics/sealpack" \
+  				--maintainer "Mathias Haimerl <mathias.haimerl@innomotics.com>" \
+  				/src/sealpack=/usr/bin/sealpack
+	@rm $(DEBIAN_DIR)/src/${BINARY_NAME}
 
 ## install: install the application
 .PHONY: install

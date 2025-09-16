@@ -1,0 +1,11 @@
+--- File: .fpm
+
+-s dir
+-t deb
+--name sealpack
+--license apache2.0
+--description "Sealed packaging for files and containers"
+--url "https://github.com/innomotics/sealpack"
+--maintainer "Mathias Haimerl <mathias.haimerl@innomotics.com>"
+
+/src/sealpack=/usr/bin/sealpack
