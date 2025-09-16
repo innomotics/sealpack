@@ -99,7 +99,9 @@ build binary:
 
 create debian packages:
   stage: release
-  image: ${CI_REGISTRY}/in/shared/clearing/automation/fpm:latest
+  image:
+    name: ${CI_REGISTRY}/in/shared/clearing/automation/fpm:latest
+    entrypoint: [""]
   needs: ["build binary"]
   script:
     - |
