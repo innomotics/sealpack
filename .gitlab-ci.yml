@@ -109,13 +109,12 @@ create debian packages:
       # amd64
       cp release/${CI_PROJECT_NAME} debian/
       fpm --version ${CI_COMMIT_REF_SLUG} --architecture x86_64
-      cp debian/*.deb release/
       rm debian/*
       # arm64
       cp release/${CI_PROJECT_NAME} debian/
       fpm --version ${CI_COMMIT_REF_SLUG} --architecture arm64
-      cp debian/*.deb release/
       rm debian/*
+      cp *.deb release/
   artifacts:
     paths:
       - release
