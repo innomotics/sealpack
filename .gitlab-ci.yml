@@ -103,15 +103,16 @@ create debian packages:
   needs: ["build binary"]
   script:
     - |
+      ls -alh
       mkdir -p debian
       # amd64
       cp release/${CI_PROJECT_NAME} debian/
-      fpm --version $(shell git describe --abbrev=0) --architecture x86_64
+      fpm --version ${CI_COMMIT_REF_SLUG} --architecture x86_64
       cp debian/*.deb release/
       rm debian/*
       # arm64
       cp release/${CI_PROJECT_NAME} debian/
-      fpm --version $(shell git describe --abbrev=0) --architecture arm64
+      fpm --version ${CI_COMMIT_REF_SLUG} --architecture arm64
       cp debian/*.deb release/
       rm debian/*
   artifacts:
