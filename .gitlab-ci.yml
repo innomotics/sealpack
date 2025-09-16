@@ -107,11 +107,11 @@ create debian packages:
     - |
       mkdir -p debian
       # amd64
-      cp release/${CI_PROJECT_NAME} debian/
+      cp release/${CI_PROJECT_NAME} debian/${CI_PROJECT_NAME}
       fpm --version ${CI_COMMIT_REF_SLUG} --architecture x86_64
       rm debian/*
       # arm64
-      cp release/${CI_PROJECT_NAME}.arm64 debian/
+      cp release/${CI_PROJECT_NAME}.arm64 debian/${CI_PROJECT_NAME}
       fpm --version ${CI_COMMIT_REF_SLUG} --architecture arm64
       rm debian/*
       cp *.deb debian/
