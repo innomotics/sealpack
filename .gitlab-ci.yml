@@ -102,18 +102,18 @@ create debian packages:
   image: ${CI_REGISTRY}/in/shared/clearing/automation/fpm:latest
   needs: ["build binary"]
   script:
-    -|
-    mkdir -p debian
-    # amd64
-    cp release/${CI_PROJECT_NAME} debian/
-    fpm --version $(shell git describe --abbrev=0) --architecture x86_64
-    cp debian/*.deb release/
-    rm debian/*
-    # arm64
-    cp release/${CI_PROJECT_NAME} debian/
-    fpm --version $(shell git describe --abbrev=0) --architecture arm64
-    cp debian/*.deb release/
-    rm debian/*
+    - |
+      mkdir -p debian
+      # amd64
+      cp release/${CI_PROJECT_NAME} debian/
+      fpm --version $(shell git describe --abbrev=0) --architecture x86_64
+      cp debian/*.deb release/
+      rm debian/*
+      # arm64
+      cp release/${CI_PROJECT_NAME} debian/
+      fpm --version $(shell git describe --abbrev=0) --architecture arm64
+      cp debian/*.deb release/
+      rm debian/*
   artifacts:
     paths:
       - release
