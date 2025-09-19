@@ -104,6 +104,7 @@ create debian packages:
   needs: ["build binary"]
   variables:
     BINARY_NAME: release/sealpack
+  extends: .package-deb
 
 create generic package:
   stage: release
