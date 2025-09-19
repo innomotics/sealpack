@@ -6,6 +6,8 @@ include:
     file: '/.gitlab-ci_scan.yml'
   - project: in/shared/tools/inbuild
     file: gitlab.yaml
+  - project: in/shared/tools/fpm
+    file: gitlab.yaml
   - project: 'in/shared/sonarqube-templates'
     ref: main
     file: '.gitlab-ci_scan.yml'
@@ -99,25 +101,9 @@ build binary:
 
 create debian packages:
   stage: release
-  image:
-    name: ${CI_REGISTRY}/in/shared/clearing/automation/fpm:latest
-    entrypoint: [""]
   needs: ["build binary"]
-  script:
-    - |
-      mkdir -p debian
-      # amd64
-      cp release/${CI_PROJECT_NAME} debian/${CI_PROJECT_NAME}
-      fpm --version ${CI_COMMIT_REF_SLUG} --architecture x86_64
-      rm debian/*
-      # arm64
-      cp release/${CI_PROJECT_NAME}.arm64 debian/${CI_PROJECT_NAME}
-      fpm --version ${CI_COMMIT_REF_SLUG} --architecture arm64
-      rm debian/*
-      cp *.deb debian/
-  artifacts:
-    paths:
-      - debian
+  variables:
+    BINARY_NAME: release/sealpack
 
 create generic package:
   stage: release
