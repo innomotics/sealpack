@@ -2,7 +2,7 @@ include:
   - project: 'in/shared/clearing/automation'
     file: '/gitlab/sw360.yaml'
   - project: 'in/shared/clearing/sunshine-docker'
-    file: '/gitlab/gitlab.yaml'
+    file: '/gitlab.yaml'
   - project: 'IN/shared/sonarqube-templates'
     ref: feat/shared-stuff
     file: '/.gitlab-ci_scan.yml'
