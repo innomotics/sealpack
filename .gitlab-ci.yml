@@ -1,6 +1,8 @@
 include:
   - project: 'in/shared/clearing/automation'
     file: '/gitlab/sw360.yaml'
+  - project: 'in/shared/clearing/sunshine-docker'
+    file: '/gitlab/gitlab.yaml'
   - project: 'IN/shared/sonarqube-templates'
     ref: feat/shared-stuff
     file: '/.gitlab-ci_scan.yml'
@@ -84,6 +86,10 @@ SBOM creation:
     - /add-tools-entry.sh plain-sbom.json temp-sbom.json
     - jq '.metadata.properties[.metadata.properties| length] |= . + {"name":"siemens:profile","value":"clearing"}' temp-sbom.json > temp2-sbom.json
     - /add-sources.sh temp2-sbom.json ${SBOM_FILE}
+
+Explain SBOM:
+  stage: clearing
+  extends: .sunshine
 
 build binary:
   stage: build
