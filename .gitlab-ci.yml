@@ -89,6 +89,8 @@ SBOM creation:
 
 Explain SBOM:
   stage: clearing
+  needs:
+    - SBOM creation
   extends: .sunshine
 
 build binary:
