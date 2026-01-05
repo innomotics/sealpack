@@ -4,11 +4,12 @@ import (
 	"archive/tar"
 	"bytes"
 	"fmt"
+	"io"
+	"os"
+
 	"github.com/apex/log"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/sigstore/sigstore/pkg/signature"
-	"io"
-	"os"
 )
 
 type tagList []*name.Tag
@@ -59,7 +60,7 @@ func (v *Verifier) AddUnsafeTag(t *name.Tag) {
 // Rolls back files or tags if integrity was not verified
 func (v *Verifier) Verify(outputPath, namespace, targetRegistry string) (err error) {
 	// Test if TOC matches collected signatures TOC amd then verify that the TOC signature matches the binary TOC
-	if bytes.Compare(v.toc.Bytes(), v.Signatures.Bytes()) != 0 {
+	if !bytes.Equal(v.toc.Bytes(), v.Signatures.Bytes()) {
 		return fmt.Errorf("tocs not matching")
 	}
 	if err = v.sigVerifier.VerifySignature(v.tocSignature, v.toc); err != nil {
