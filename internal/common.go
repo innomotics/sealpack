@@ -17,11 +17,12 @@ package internal
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/innomotics/sealpack/internal/aws"
-	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/innomotics/sealpack/internal/aws"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -48,10 +49,8 @@ func ReadConfiguration(fileName string, files *[]string, images *[]*ContainerIma
 	switch strings.ToLower(filepath.Ext(fileName)) {
 	case ".json":
 		err = json.Unmarshal(data, &contents)
-		break
 	case ".yaml", ".yml":
 		err = yaml.Unmarshal(data, &contents)
-		break
 	default:
 		err = fmt.Errorf("invalid file type: %s", filepath.Ext(fileName))
 	}
