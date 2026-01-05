@@ -17,19 +17,20 @@ package internal
 import (
 	"context"
 	"fmt"
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/images"
-	"github.com/containerd/containerd/namespaces"
-	"github.com/google/go-containerregistry/pkg/crane"
-	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/images"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
+	"github.com/google/go-containerregistry/pkg/crane"
+	"github.com/google/go-containerregistry/pkg/name"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/tarball"
 )
 
 const (
@@ -41,7 +42,7 @@ const (
 
 var (
 	ContainerDSocket  = ""
-	containerDClient  *containerd.Client
+	containerDClient  *client.Client
 	containerDContext context.Context
 )
 
@@ -113,7 +114,7 @@ func ParseContainerImage(name string) *ContainerImage {
 }
 
 // getContainerDClient creates a client for accessing a local containerD instance
-func getContainerDClient(namespace string) (*containerd.Client, context.Context, error) {
+func getContainerDClient(namespace string) (*client.Client, context.Context, error) {
 	var err error
 	var sock string
 	var nsList []string
@@ -125,7 +126,7 @@ func getContainerDClient(namespace string) (*containerd.Client, context.Context,
 		if _, err = os.Stat(sock); os.IsNotExist(err) || os.IsPermission(err) {
 			return nil, nil, err
 		}
-		containerDClient, err = containerd.New(sock)
+		containerDClient, err = client.New(sock)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -154,7 +155,7 @@ func ImportImage(namespace, targetRegistry string, tarReader io.ReadCloser, tag 
 
 // importLocal imports an image to a locally running containerd instance
 func importLocal(namespace string, tarReader io.ReadCloser, tag *name.Tag) (newImport bool, err error) {
-	var oldImg containerd.Image
+	var oldImg client.Image
 	var newImg []images.Image
 	client, ctx, err := getContainerDClient(namespace)
 	if err != nil {
