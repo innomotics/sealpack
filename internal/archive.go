@@ -21,6 +21,11 @@ import (
 	"crypto"
 	"encoding/binary"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/apex/log"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/klauspost/compress/flate"
@@ -29,10 +34,6 @@ import (
 	"github.com/ovh/symmecrypt"
 	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/sigstore/sigstore/pkg/signature/options"
-	"io"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
 const (
@@ -480,17 +481,13 @@ func (arc *WriteArchive) InitializeCompression(w io.WriteCloser, compressionAlgo
 	switch compressionAlgo {
 	case 1: // zlib
 		arc.compressWriter = zlib.NewWriter(w)
-		break
 	case 2: // zip
 		log.Warnf("ZIP writer currently not implemented")
 		arc.compressWriter = w
-		break
 	case 3: // flate
 		arc.compressWriter, _ = flate.NewWriter(w, flate.DefaultCompression)
-		break
 	default: // gzip
 		arc.compressWriter = gzip.NewWriter(w)
-		break
 	}
 }
 
@@ -641,17 +638,13 @@ func (arc *ReadArchive) InitializeCompression(r io.Reader, compressionAlgo uint8
 	switch compressionAlgo {
 	case 1: // zlib
 		arc.compressReader, err = zlib.NewReader(r)
-		break
 	case 2: // zip
 		log.Warnf("ZIP writer currently not implemented")
 		arc.compressReader = r
-		break
 	case 3: // flate
 		arc.compressReader = flate.NewReader(r)
-		break
 	default: // gzip
 		arc.compressReader, err = gzip.NewReader(r)
-		break
 	}
 	return
 }
