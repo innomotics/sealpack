@@ -8,7 +8,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.6
 	github.com/aws/aws-sdk-go-v2/service/kms v1.49.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.95.0
-	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.0
 	github.com/containerd/containerd/v2 v2.2.1
 	github.com/google/go-containerregistry v0.20.7
 	github.com/klauspost/compress v1.18.2
