@@ -15,59 +15,15 @@ package internal
  */
 
 import (
-	"bytes"
-	"github.com/innomotics/sealpack/internal/aws"
-	"io"
 	"os"
-	"strings"
 )
 
-var uploadS3 = aws.S3UploadArchive
 var stdout = os.Stdout
-
-// WriteFileBytes allows for writing a byte slice to a regular file, S3 bucket or stdout
-func WriteFileBytes(output string, contents []byte) error {
-	if strings.HasPrefix(output, aws.S3UriPrefix) {
-		return uploadS3(bytes.NewReader(contents), output)
-	} else {
-		var of io.ReadWriteCloser
-		var err error
-		if output == "-" {
-			of = stdout
-		} else {
-			of, err = os.Create(output)
-			if err != nil {
-				return err
-			}
-			defer of.Close()
-		}
-		_, err = of.Write(contents)
-		return err
-	}
-}
 
 // NewOutputFile creates a new output file depending on the type of output target
 func NewOutputFile(output string) (*os.File, error) {
-	if strings.HasPrefix(strings.ToLower(output), aws.S3UriPrefix) {
-		return os.CreateTemp("", "")
-	}
 	if output == "-" {
 		return stdout, nil
 	}
 	return os.Create(output)
-}
-
-// CleanupFileWriter cleans up temporary files and performs post-finish operations
-func CleanupFileWriter(output string, f *os.File) error {
-	if strings.HasPrefix(strings.ToLower(output), aws.S3UriPrefix) {
-		tmp, err := os.Open(f.Name())
-		if err != nil {
-			return err
-		}
-		if err = uploadS3(tmp, output); err != nil {
-			return err
-		}
-		return os.RemoveAll(f.Name())
-	}
-	return nil
 }
