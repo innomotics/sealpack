@@ -18,8 +18,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/sigstore/sigstore/pkg/signature"
@@ -32,16 +32,16 @@ import (
 
 // KMSCryptoClient is the container for the KMS Key
 type KMSCryptoClient struct {
-	KeyID      string
-	kmsSession *kms.Client
-	pubKey     *kms.GetPublicKeyOutput
+	KeyID     string
+	kmsClient *kms.Client
+	pubKey    *kms.GetPublicKeyOutput
 }
 
 // getPubKey requests the public key from AWS
 func (enc *KMSCryptoClient) getPubKey() (*kms.GetPublicKeyOutput, error) {
 	var err error
 	if enc.pubKey == nil {
-		enc.pubKey, err = enc.kmsSession.GetPublicKey(awsCtx, &kms.GetPublicKeyInput{
+		enc.pubKey, err = enc.kmsClient.GetPublicKey(awsCtx, &kms.GetPublicKeyInput{
 			KeyId: aws.String(enc.KeyID),
 		})
 		if err != nil {
@@ -57,7 +57,6 @@ func (enc *KMSCryptoClient) CanEncrypt() bool {
 	if err != nil {
 		return false
 	}
-	log.Debugf("%v\n", pubKey)
 	return pubKey.KeyUsage == types.KeyUsageTypeEncryptDecrypt
 }
 
@@ -83,7 +82,7 @@ type KMSEncrypter struct {
 
 // EncryptMessage using the KMS API
 func (enc *KMSEncrypter) EncryptMessage(message []byte) ([]byte, error) {
-	out, err := enc.kmsSession.Encrypt(awsCtx, &kms.EncryptInput{
+	out, err := enc.kmsClient.Encrypt(awsCtx, &kms.EncryptInput{
 		Plaintext:           message,
 		EncryptionAlgorithm: types.EncryptionAlgorithmSpecRsaesOaepSha256,
 		KeyId:               aws.String(enc.KeyID),
@@ -96,10 +95,14 @@ func (enc *KMSEncrypter) EncryptMessage(message []byte) ([]byte, error) {
 
 // NewKMSEncrypter generatea a new KMSEncrypter instance
 func NewKMSEncrypter(keyID string) (*KMSEncrypter, error) {
+	c, err := NewKMSClient(awsCtx)
+	if err != nil {
+		return nil, err
+	}
 	enc := &KMSEncrypter{
 		KMSCryptoClient: KMSCryptoClient{
-			KeyID:      keyID,
-			kmsSession: kms.New(kms.Options{}),
+			KeyID:     keyID,
+			kmsClient: c,
 		},
 	}
 	if !enc.CanEncrypt() {
@@ -115,7 +118,7 @@ type KMSDecrypter struct {
 
 // DecryptMessage decrypts a message using the KMS API
 func (dec *KMSDecrypter) DecryptMessage(message []byte) ([]byte, error) {
-	out, err := dec.kmsSession.Decrypt(awsCtx, &kms.DecryptInput{
+	out, err := dec.kmsClient.Decrypt(awsCtx, &kms.DecryptInput{
 		CiphertextBlob:      message,
 		EncryptionAlgorithm: types.EncryptionAlgorithmSpecRsaesOaepSha256,
 		KeyId:               aws.String(dec.KeyID),
@@ -128,16 +131,29 @@ func (dec *KMSDecrypter) DecryptMessage(message []byte) ([]byte, error) {
 
 // NewKMSDecrypter generates a new KMSDecrypter instance
 func NewKMSDecrypter(keyID string) (*KMSDecrypter, error) {
+	c, err := NewKMSClient(awsCtx)
+	if err != nil {
+		return nil, err
+	}
 	dec := &KMSDecrypter{
 		KMSCryptoClient: KMSCryptoClient{
-			KeyID:      keyID,
-			kmsSession: kms.New(kms.Options{}),
+			KeyID:     keyID,
+			kmsClient: c,
 		},
 	}
 	if !dec.CanEncrypt() {
 		return nil, fmt.Errorf("kms key cannot decrypt")
 	}
 	return dec, nil
+}
+
+// newKMSClient generates a new KMS Client instance with default config
+func NewKMSClient(ctx context.Context) (*kms.Client, error) {
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return kms.NewFromConfig(cfg), nil
 }
 
 /***************
