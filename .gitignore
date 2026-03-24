@@ -3,6 +3,8 @@
 /downloader.zip
 test_kms.sh
 
+.vscode
+.env
 .idea
 /test.tar
 /test/
