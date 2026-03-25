@@ -16,9 +16,10 @@ package sealpack
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/apex/log"
 	"github.com/innomotics/sealpack/internal"
-	"os"
 )
 
 type UnsealConfig struct {
@@ -99,9 +100,6 @@ func Seal(sealCfg *SealConfig) error {
 		return err
 	}
 	if err = arc.Cleanup(); err != nil {
-		return err
-	}
-	if err = internal.CleanupFileWriter(sealCfg.Output, out); err != nil {
 		return err
 	}
 	log.Info("seal: successfully finished")
