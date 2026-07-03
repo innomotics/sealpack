@@ -57,9 +57,9 @@ jobs:
           version: v1
           args: mod -licenses -json -output sealpack-sbom.json
       - name: Perform Repolinter scan
-        uses: philips-labs/github-action-repolinter@v1.0.0
+        uses: newrelic/repolinter-action@v1.7.0
         with:
-          custom-repolint-file: repolinter.json
+          config_file: repolinter.json
       - name: Perform Gitleaks scan
         uses: gitleaks/gitleaks-action@v2.3.4
         env:
