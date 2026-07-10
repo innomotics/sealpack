@@ -57,7 +57,5 @@ jobs:
         uses: philips-labs/github-action-repolinter@master
         env:
           CUSTOM_REPOLINT_FILE: repolinter.json
-      - name: Perform Gitleaks scan
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: TruffleHog scan
+        uses: trufflesecurity/trufflehog@v3.95.9
