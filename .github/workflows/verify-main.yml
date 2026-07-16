@@ -22,22 +22,25 @@ jobs:
     permissions: write-all
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v7.0.0
+      - uses: actions/setup-go@v6.5.0
         with:
-          go-version: '>=1.19.0'
+          go-version: '>=1.25.5'
       - name: Execute Unit tests
         run: |
           mkdir test && pushd test
           openssl genrsa -out private1024.pem 1024 && openssl rsa -in private1024.pem -pubout -out public1024.pem
           openssl genrsa -out private2048.pem 2048 && openssl rsa -in private2048.pem -pubout -out public2048.pem
           openssl genrsa -out private.pem 4096 && openssl rsa -in private.pem -pubout -out public.pem
+          openssl genrsa -traditional -out pkcs1-private.pem 1024 && openssl rsa -in pkcs1-private.pem -pubout -traditional -out pkcs1-public.pem
+          openssl genpkey -algorithm ed25519 -out ec-private.pem && openssl ec -in ec-private.pem -pubout -out ec-public.pem
+          openssl ecparam -name secp224r1 -genkey -noout -out asn1-private.pem && openssl ec -in asn1-private.pem -pubout -out asn1-public.pem
           popd
           go mod tidy
           go test ./... -coverprofile=coverage.txt -covermode count
           go get github.com/boumenot/gocover-cobertura
           go run github.com/boumenot/gocover-cobertura < coverage.txt > coverage.xml
-      - uses: 5monkeys/cobertura-action@master
+      - uses: 5monkeys/cobertura-action@v14
         with:
           path: coverage.xml
           minimum_coverage: 75
@@ -45,17 +48,17 @@ jobs:
     name: Perform several scans on the code base
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7.0.0
         with:
           fetch-depth: 0
       - name: Generate SBOM
-        uses: CycloneDX/gh-gomod-generate-sbom@v1
+        uses: CycloneDX/gh-gomod-generate-sbom@v2.0.0
         with:
           version: v1
           args: mod -licenses -json -output sealpack-sbom.json
       - name: Perform Repolinter scan
-        uses: philips-labs/github-action-repolinter@master
-        env:
-          CUSTOM_REPOLINT_FILE: repolinter.json
+        uses: newrelic/repolinter-action@v1.7.0
+        with:
+          config_file: repolinter.json
       - name: TruffleHog scan
         uses: trufflesecurity/trufflehog@v3.95.9

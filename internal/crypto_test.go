@@ -106,7 +106,7 @@ func Test_LoadPublicKeyNotAKey(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Contains(t, "file does not contain PEM data", err.Error())
 	assert.Nil(t, pubKey)
-	assert.NoError(t, os.Remove(pubKeyPath))
+	assert.NoError(t, os.RemoveAll(pubKeyPath))
 }
 func Test_LoadPublicKeyIsPrivate(t *testing.T) {
 	pubKeyPath := filepath.Join(filepath.Clean("../test"), "private.pem")
@@ -161,7 +161,7 @@ func Test_LoadPrivateKeyNotAKey(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Contains(t, "file does not contain PEM data", err.Error())
 	assert.Nil(t, privKey)
-	assert.NoError(t, os.Remove(privateKeyPath))
+	assert.NoError(t, os.RemoveAll(privateKeyPath))
 }
 func Test_LoadPrivateKeyIsPublic(t *testing.T) {
 	privateKeyPath := filepath.Join(filepath.Clean("../test"), "public.pem")
